@@ -60,6 +60,13 @@ class BenchmarkingNoise:
             benchmarks = pd.concat([benchmarks, pd.DataFrame.from_records(benchmark_list)])
 
         benchmarks.to_csv(save_dir + "/results.csv")
+        self.benchmark_summary(benchmarks)
+
+    def benchmark_summary(self, benchmarks: pd.DataFrame):
+        for p in benchmarks['mistake_prob']:
+            benchmarks_p = benchmarks.loc[benchmarks['mistake_prob'] == p]
+
+        pass
 
     def rand_benchmark(self, save_dir=None):
         full_alphabet = "abcdefghijklmnopqrstuvwxyz"
@@ -157,9 +164,9 @@ class BenchmarkingNoise:
         print(output)
         dist_2_original = np.average(output[0][2:])
         dist_2_noisy = np.average(output[1][2:])
-        benchmark.update({"dist_dfa_noisy": "{}".format(output[0][1]),
-                          "dist_dfa_extr": "{}".format(dist_2_original),
-                          "dist_noisy_extr": "{}".format(dist_2_noisy)})
+        benchmark.update({"dist_dfa_noisy": output[0][1],
+                          "dist_dfa_extr": dist_2_original,
+                          "dist_noisy_extr": dist_2_noisy})
 
         print(output)
 
