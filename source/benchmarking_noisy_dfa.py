@@ -82,13 +82,16 @@ class BenchmarkingNoise:
         benchmarks: pd.DataFrame = pd.DataFrame()
 
         for bench_num in range(1, num_benchmarks + 1):
-            logging.info("Running benchmark {}/{}:".format(bench_num, num_benchmarks))
+            start_time = time.time()
+            logging.info("Running benchmark {}/{}".format(bench_num, num_benchmarks))
             benchmark_list = self.rand_benchmark(
                 save_dir + "/" + format(datetime.datetime.now().strftime("%d-%b-%Y_%H-%M-%S")) + str(bench_num))
             logging.debug("Summary for the {}th benchmark".format(bench_num))
             logging.debug(benchmark_list)
 
             benchmarks = pd.concat([benchmarks, pd.DataFrame.from_records(benchmark_list)])
+            logging.info(f"Finished benchmark {bench_num}/{num_benchmarks}, in {time.time() - start_time} sec")
+
 
         benchmarks.reset_index()
         benchmarks.to_csv(save_dir + "/results.csv")
