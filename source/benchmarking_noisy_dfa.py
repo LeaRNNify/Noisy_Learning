@@ -60,11 +60,23 @@ class BenchmarkingNoise:
             benchmarks = pd.concat([benchmarks, pd.DataFrame.from_records(benchmark_list)])
 
         benchmarks.to_csv(save_dir + "/results.csv")
-        self.benchmark_summary(benchmarks)
+        self.benchmark_summary(benchmarks,save_dir)
 
-    def benchmark_summary(self, benchmarks: pd.DataFrame):
+    @staticmethod
+    def benchmark_summary(benchmarks: pd.DataFrame, save_dir: str):
+        summary_lines = []
         for p in benchmarks['mistake_prob']:
+            if benchmarks['noise_type'].iloc[0] == "noisy_dfa":
+                benchmarks['dist_dfa_noisy'] = p
+
             benchmarks_p = benchmarks.loc[benchmarks['mistake_prob'] == p]
+            summary_lines.append({'mistake_prob': benchmarks_p['mistake_prob'],
+                                  'dist_dfa_noisy': benchmarks_p['dist_dfa_noisy'].mean(),
+                                  'dist_dfa_extr': benchmarks_p['dist_dfa_extr'].mean(),
+                                  'dist_noisy_extr': benchmarks_p['dist_noisy_extr'].mean(),
+                                  'gain': (benchmarks_p['dist_dfa_noisy'].mean() / benchmarks_p[
+                                      'dist_dfa_extr']).mean()})
+        pd.DataFrame.from_records(summary_lines).to_csv(save_dir + "/results_summary.csv")
 
         pass
 
