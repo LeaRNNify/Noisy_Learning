@@ -1,3 +1,4 @@
+import logging
 import sys
 import time
 import numpy as np
@@ -112,7 +113,7 @@ def confidence_interval_subset(language_inf, language_sup, samples=None, confide
             #     sys.stdout.write('\r Creating words:  {}/100 done'.format(str(int((len(samples) / n) * 100))))
             samples.append(random_word(language_inf.alphabet))
 
-        sys.stdout.write('\r Creating words:  100/100 done \n')
+        logging.debug('Creating words:  100/100 done \n')
 
     mistakes = 0
 
@@ -155,15 +156,14 @@ def confidence_interval_many_for_reuse(languages, sampler, previous_answers=None
         #     samples.extend(None)
         # print(n)
         # print(len(samples))
-        print("begin samples {} creation for width ={} and confidence = {}".format(n, width, confidence))
+        logging.debug("begin samples {} creation for width ={} and confidence = {}".format(n, width, confidence))
         samples = random_words(n, tuple(languages[0].alphabet), 1 / 0.01)
 
         # while len(samples) <= n:
         #     if len(samples) % 1000 == 0:
         #         sys.stdout.write('\r Creating words:  {}/100 done'.format(str(int((len(samples) / n) * 100))))
         #     samples.append(sampler(languages[0].alphabet))
-
-        sys.stdout.write('\r Creating words:  100/100 done \n')
+        logging.debug('\r Creating words:  100/100 done \n')
     in_langs_lists = []
     # i = 0
     # sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
@@ -185,7 +185,7 @@ def confidence_interval_many_for_reuse(languages, sampler, previous_answers=None
     #         elif output[lang1][lang2] == 1:
     #             output[lang1][lang2] = ([(in_langs_lists[lang1])[i] == (in_langs_lists[lang2])[i] for i in
     #                                      range(len(samples))].count(False)) / len(samples)
-    print("finished in {} s".format(time.time() - st))
+    logging.debug("finished confidence interval  in {} s".format(time.time() - st))
 
     # print()
     output[0][1] = ([(in_langs_lists[0])[i] == (in_langs_lists[2])[i] for i in
@@ -353,7 +353,7 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
         #     samples.extend(None)
         # print(n)
         # print(len(samples))
-        print("begin samples {} creation for width ={} and confidence = {}".format(n, width, confidence))
+        logging.debug("begin samples {} creation for width ={} and confidence = {}".format(n, width, confidence))
         samples = random_words(n, tuple(languages[0].alphabet), 1 / 0.01)
 
         # while len(samples) <= n:
@@ -361,7 +361,7 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
         #         sys.stdout.write('\r Creating words:  {}/100 done'.format(str(int((len(samples) / n) * 100))))
         #     samples.append(sampler(languages[0].alphabet))
 
-        sys.stdout.write('\r Creating words:  100/100 done \n')
+        logging.debug('Creating words:  100/100 done \n')
     in_langs_lists = []
     # i = 0
     # sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
@@ -383,7 +383,7 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
     #         elif output[lang1][lang2] == 1:
     #             output[lang1][lang2] = ([(in_langs_lists[lang1])[i] == (in_langs_lists[lang2])[i] for i in
     #                                      range(len(samples))].count(False)) / len(samples)
-    print("finished in {} s".format(time.time() - st))
+    logging.debug("finished in {} s".format(time.time() - st))
 
     output[0][1] = ([(in_langs_lists[0])[i] == (in_langs_lists[1])[i] for i in
                      range(len(samples))].count(False)) / len(samples)

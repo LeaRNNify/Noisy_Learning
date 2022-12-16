@@ -1,14 +1,13 @@
+import functools
 import itertools
 import os
 import string
-from collections import namedtuple
 from copy import deepcopy
 
-import numpy as np
-# from randwords import sto_is_word_in
-
 import graphviz as gv
-import functools
+import numpy as np
+
+# from randwords import sto_is_word_in
 
 digraph = functools.partial(gv.Digraph, format='png')
 graph = functools.partial(gv.Graph, format='png')
@@ -16,6 +15,8 @@ separator = "_"
 
 
 class DFA:
+    unique_dfa_session_id = 0
+
     def __init__(self, init_state, final_states, transitions):
         self.final_states = final_states
         self.init_state = init_state
@@ -23,6 +24,8 @@ class DFA:
         self.states = list(transitions.keys())
         self.alphabet = list(transitions[init_state].keys())
         self.current_state = self.init_state
+        self.id = DFA.unique_dfa_session_id
+        DFA.unique_dfa_session_id += 1
 
     def is_word_in(self, word):
         state = self.init_state

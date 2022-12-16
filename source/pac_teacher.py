@@ -1,3 +1,4 @@
+import logging
 import time
 from collections import namedtuple
 
@@ -16,7 +17,7 @@ from randwords import is_words_in_dfa, compare_list_of_bool, is_words_in_counter
 
 
 def random_words(batch_size, alphabet, word_length):
-    return [random_word(alphabet, 1/word_length) for _ in range(batch_size)]
+    return [random_word(alphabet, 1 / word_length) for _ in range(batch_size)]
 
 
 class StupidGuess:
@@ -114,7 +115,7 @@ class PACTeacher(Teacher):
             self.num_equivalence_asked += num_of_ref - 1
 
     def teach_acc_noise_dist(self, learner, max_prev_larger_then_curr=3):
-        #todo: this neesd to be 0.01
+        # todo: this neesd to be 0.01
         confidence_width = 0.1
 
         self.num_equivalence_asked = 0
@@ -129,8 +130,8 @@ class PACTeacher(Teacher):
         t100 = start_time
         while True:
             if count_prev_larger_then_curr > max_prev_larger_then_curr:
-                print(max_prev_larger_then_curr)
-                print(time.time() - start_time)
+                logging.debug(max_prev_larger_then_curr)
+                logging.debug(time.time() - start_time)
                 learner.dfa = min_dfa
                 return min_dfa
             # print(i)
@@ -144,11 +145,13 @@ class PACTeacher(Teacher):
                 if samples is None:
                     output, samples, answers = confidence_interval_many_for_reuse_2([self.model, learner.dfa],
                                                                                     random_word,
-                                                                                    width=confidence_width, confidence=confidence_width)
+                                                                                    width=confidence_width,
+                                                                                    confidence=confidence_width)
                 else:
                     output, _, answers = confidence_interval_many_for_reuse_2([self.model, learner.dfa],
                                                                               random_word, answers, samples=samples,
-                                                                              width=confidence_width, confidence=confidence_width)
+                                                                              width=confidence_width,
+                                                                              confidence=confidence_width)
 
                 new_dist = output[0][1]
                 # print(new_dist)
@@ -157,14 +160,14 @@ class PACTeacher(Teacher):
                 if new_dist < min_dist:
                     min_dfa = learner.dfa
                     min_dist = new_dist
-                    print(len(min_dfa.states))
+                    logging.debug(len(min_dfa.states))
                 # t100 = time.time()
-                print("this is the {}th round with: prev_dist = {}, "
-                      "new_dist = {}, min_dist = {}, Num_of_large_delta: {}".format(self.num_equivalence_asked,
-                                                                                    round(prev_dist, 5),
-                                                                                    round(new_dist, 5),
-                                                                                    round(min_dist, 5),
-                                                                                    count_prev_larger_then_curr))
+                logging.debug("this is the {}th round with: prev_dist = {}, "
+                              "new_dist = {}, min_dist = {}, Num_of_large_delta: {}".format(self.num_equivalence_asked,
+                                                                                            round(prev_dist, 5),
+                                                                                            round(new_dist, 5),
+                                                                                            round(min_dist, 5),
+                                                                                            count_prev_larger_then_curr))
                 prev_dist = new_dist
 
             counter = self.equivalence_query(learner.dfa)
@@ -208,9 +211,10 @@ class PACTeacher(Teacher):
                 break
             i = i + 1
             if i % 100 == 0:
-                print("this is the {}th round".format(i))
-                print("{} time has passed from the begging and {} from the last 100".format(time.time() - start_time,
-                                                                                            time.time() - t100))
+                logging.debug("this is the {}th round".format(i))
+                logging.debug(
+                    "{} time has passed from the begging and {} from the last 100".format(time.time() - start_time,
+                                                                                          time.time() - t100))
                 t100 = time.time()
             counter = self.equivalence_query(student.dfa)
 
