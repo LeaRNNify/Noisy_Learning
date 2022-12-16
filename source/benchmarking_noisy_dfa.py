@@ -66,11 +66,11 @@ class BenchmarkingNoise:
     def benchmark_summary(benchmarks: pd.DataFrame, save_dir: str):
         summary_lines = []
         for p in benchmarks['mistake_prob']:
-            if benchmarks['noise_type'].iloc[0] == "noisy_dfa":
+            if benchmarks['noise_type'].iloc[0] == "noisy_DFA":
                 benchmarks['dist_dfa_noisy'] = p
 
             benchmarks_p = benchmarks.loc[benchmarks['mistake_prob'] == p]
-            summary_lines.append({'mistake_prob': benchmarks_p['mistake_prob'],
+            summary_lines.append({'mistake_prob': p,
                                   'dist_dfa_noisy': benchmarks_p['dist_dfa_noisy'].mean(),
                                   'dist_dfa_extr': benchmarks_p['dist_dfa_extr'].mean(),
                                   'dist_noisy_extr': benchmarks_p['dist_noisy_extr'].mean(),
