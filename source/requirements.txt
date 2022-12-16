@@ -1,0 +1,5 @@
+numpy~=1.23.4
+graphviz~=0.20.1
+Cython~=0.29.32
+torch~=1.13.0
+pandas~=1.5.2

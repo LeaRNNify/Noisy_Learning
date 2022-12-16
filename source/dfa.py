@@ -5,9 +5,7 @@ from collections import namedtuple
 from copy import deepcopy
 
 import numpy as np
-from IPython.display import Image
-from IPython.display import display
-from randwords import sto_is_word_in
+# from randwords import sto_is_word_in
 
 import graphviz as gv
 import functools
@@ -507,27 +505,3 @@ class DFANoisy(DFA):
         else:
             self.known_mistakes.update({word: label})
             return label
-
-
-class UniformStohasticDFA(DFA):
-    def __init__(self, init_state, final_states, transitions, mistake_prob=0.01):
-        super().__init__(init_state, final_states, transitions)
-        self.mistake_prob = mistake_prob
-        self.known_mistakes = {}
-
-    def is_word_in(self, word):
-        if word in self.known_mistakes:
-            return self.known_mistakes[word]
-        #
-        # state = self.init_state
-        # for letter in word:
-        #     if np.random.randint(0, int(1 / self.mistake_prob)) == 0:
-        #
-        #         state = self.states[np.random.randint(0, int(len(self.states)))]
-        #     else:
-        #         state = self.transitions[state][letter]
-        #
-        # label = state in self.final_states
-        label = sto_is_word_in(self, word, self.mistake_prob)
-        self.known_mistakes.update({word: label})
-        return label

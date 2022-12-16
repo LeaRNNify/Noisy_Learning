@@ -1,10 +1,9 @@
 from abc import ABC
 
 from dfa import DFA
-from model_checker import ModelChecker
 
 
-class DFAChecker(ModelChecker, ABC):
+class DFAChecker:
 
     def __init__(self, specification: DFA, is_super_set=True):
         super().__init__(specification)

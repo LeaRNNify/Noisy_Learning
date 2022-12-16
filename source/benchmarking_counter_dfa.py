@@ -10,8 +10,6 @@ from dfa import DFA, random_dfa, dfa_intersection, save_dfa_as_part_of_model, DF
 from dfa_check import DFAChecker
 from exact_teacher import ExactTeacher
 from learner_decison_tree import DecisionTreeLearner
-from lstar.Extraction import extract as extract_iclm
-from modelPadding import RNNLanguageClasifier
 from pac_teacher import PACTeacher
 from random_words import confidence_interval_many, random_word, confidence_interval_subset, confidence_interval, \
     confidence_interval_many_cython
@@ -158,7 +156,7 @@ def extract_dfa(dfa, benchmark, epsilon=0.001, delta=0.001, suffix="", timeout=9
     student = DecisionTreeLearner(teacher_pac)
     teacher_pac.teach_acc_noise_dist(student)
     benchmark.update({"extraction_time" + suffix: "{:.3}".format(time.time() - start_time)})
-    benchmark.update({"extraction_loops" + suffix: teacher_pac._num_equivalence_asked})
+    benchmark.update({"extraction_loops" + suffix: teacher_pac.num_equivalence_asked})
     print("time = {}".format(time.time() - start_time))
     dfa_extract = minimize_dfa(student.dfa)
     print(student.dfa)

@@ -10,7 +10,6 @@ class Learner(ABC):
         """
         self.teacher = teacher
 
-
     @abstractmethod
     def new_counterexample(self, word):
         pass

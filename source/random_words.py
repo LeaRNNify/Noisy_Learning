@@ -1,16 +1,12 @@
-import gc
 import sys
 import time
 import numpy as np
-import torch
 from randwords import random_words, is_words_in_dfa, compare_list_of_bool, is_words_in_counterDfa, \
     is_words_in_dfa_finalcount
 
 from counter_dfa import CounterDFA, NoisyCounterDFA, DFAFinalCount
-from dfa import DFA, DFANoisy, UniformStohasticDFA
-from modelPadding import LSTM, RNNLanguageClasifier
+from dfa import DFA, DFANoisy
 
-# from mycython.randwords import random_words as random_words_c
 from noisy_input_dfa import NoisyInputDFA
 
 
@@ -75,28 +71,11 @@ def confidence_interval_many(languages, sampler, confidence=0.001, width=0.001, 
     in_langs_lists = []
     i = 0
     sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
-    torch.cuda.empty_cache()
     for lang in languages:
-        if not isinstance(lang, RNNLanguageClasifier):
-            tmp = []
-            for w in samples:
-                tmp.append(lang.is_word_in(w))
-            in_langs_lists.append(tmp)
-            # in_langs_lists.append([lang.is_word_in(w) for w in samples])
-        else:
-            rnn_bool_list = []
-            batch_size = 1000
-            num_of_batches = int((len(samples) / batch_size))
-            for i in range(num_of_batches):
-                if i % 50 == 0:
-                    print("done {}/{}".format(i, num_of_batches))
-                batch = samples[i * batch_size:(i + 1) * batch_size]
-                batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                rnn_bool_list.extend(batch_out)
-            batch = samples[num_of_batches * batch_size:len(samples)]
-            batch_out = (lang.is_words_in_batch(batch) > 0.5)
-            rnn_bool_list.extend(batch_out)
-            in_langs_lists.append(rnn_bool_list)
+        tmp = []
+        for w in samples:
+            tmp.append(lang.is_word_in(w))
+        in_langs_lists.append(tmp)
 
     output = []
     for i in range(num_of_lan):
@@ -190,22 +169,7 @@ def confidence_interval_many_for_reuse(languages, sampler, previous_answers=None
     # sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
     if previous_answers is None:
         for lang in languages:
-            if not isinstance(lang, LSTM):
-                in_langs_lists.append([lang.is_word_in(w) for w in samples])
-            else:
-                rnn_bool_list = []
-                batch_size = 1000
-                n = int((len(samples) / batch_size))
-                for i in range(n):
-                    if i % 50 == 0:
-                        print("done {}/{}".format(i, n))
-                    batch = samples[i * batch_size:(i + 1) * batch_size]
-                    batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                    rnn_bool_list.extend(batch_out)
-                batch = samples[n * batch_size:len(samples)]
-                batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                rnn_bool_list.extend(batch_out)
-                in_langs_lists.append(rnn_bool_list)
+            in_langs_lists.append([lang.is_word_in(w) for w in samples])
     else:
         in_langs_lists = previous_answers
         in_langs_lists.append([languages[-1].is_word_in(w) for w in samples])
@@ -284,7 +248,6 @@ def confidence_interval_many_cython(languages, confidence=0.001, width=0.005, sa
 
     runs_done = 0
     samples = None
-    gc.collect()
     for num_of_samples in nums:
         # time.sleep(30)
         # if runs_done % 5 == 0:
@@ -320,37 +283,21 @@ def confidence_interval_many_cython(languages, confidence=0.001, width=0.005, sa
         # torch.cuda.empty_cache() /notsure wtf is this??
         for lang in languages:
             # print(lang)
-            if not isinstance(lang, RNNLanguageClasifier):
-                if isinstance(lang, DFANoisy) or isinstance(lang, NoisyInputDFA) or isinstance(lang, NoisyCounterDFA) \
-                        or isinstance(lang, UniformStohasticDFA):
-                    # print("noisy DFA")
-                    in_langs_lists.append([lang.is_word_in(w) for w in samples])
-                elif isinstance(lang, DFAFinalCount):
-                    in_langs_lists.append(is_words_in_dfa_finalcount(lang, samples))
-                elif isinstance(lang, CounterDFA):
-                    in_langs_lists.append(is_words_in_counterDfa(lang, samples))
-                    # in_langs_lists.append([lang.is_word_in(w) for w in samples])
-                elif not isinstance(lang, DFA):
-                    in_langs_lists.append([lang.is_word(w) for w in samples])
-                else:
-                    # print("")
-                    in_langs_lists.append(is_words_in_dfa(lang, samples))
+            if isinstance(lang, DFANoisy) or isinstance(lang, NoisyInputDFA) or isinstance(lang, NoisyCounterDFA):
+                # print("noisy DFA")
+                in_langs_lists.append([lang.is_word_in(w) for w in samples])
+            elif isinstance(lang, DFAFinalCount):
+                in_langs_lists.append(is_words_in_dfa_finalcount(lang, samples))
+            elif isinstance(lang, CounterDFA):
+                in_langs_lists.append(is_words_in_counterDfa(lang, samples))
                 # in_langs_lists.append([lang.is_word_in(w) for w in samples])
-                # print(in_langs_lists)
+            elif not isinstance(lang, DFA):
+                in_langs_lists.append([lang.is_word(w) for w in samples])
             else:
-                rnn_bool_list = []
-                batch_size = 1000
-                num_of_batches = int((len(samples) / batch_size))
-                for i in range(num_of_batches):
-                    # if i % 50 == 0:
-                        # print("done {}/{}".format(i, num_of_batches))
-                    batch = samples[i * batch_size:(i + 1) * batch_size]
-                    batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                    rnn_bool_list.extend(batch_out)
-                batch = samples[num_of_batches * batch_size:len(samples)]
-                batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                rnn_bool_list.extend(batch_out)
-                in_langs_lists.append(rnn_bool_list)
+                # print("")
+                in_langs_lists.append(is_words_in_dfa(lang, samples))
+            # in_langs_lists.append([lang.is_word_in(w) for w in samples])
+            # print(in_langs_lists)
 
         for lang1 in range(num_of_lan):
             for lang2 in range(num_of_lan):
@@ -372,9 +319,12 @@ def confidence_interval_many_cython(languages, confidence=0.001, width=0.005, sa
     return output, samples
 
 
+def random_words(batch_size, alphabet, word_length):
+    return [random_word(alphabet, 1 / word_length) for _ in range(int(batch_size))]
+
 
 def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=None, confidence=0.001, width=0.005,
-                                       samples=None):
+                                         samples=None):
     """
     Produce the probabilistic distance of the given languages. Using the Chernoff-Hoeffding bound we get that
     in order to have:
@@ -417,22 +367,7 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
     # sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
     if previous_answers is None:
         for lang in languages:
-            if not isinstance(lang, LSTM):
-                in_langs_lists.append([lang.is_word_in(w) for w in samples])
-            else:
-                rnn_bool_list = []
-                batch_size = 1000
-                n = int((len(samples) / batch_size))
-                for i in range(n):
-                    if i % 50 == 0:
-                        print("done {}/{}".format(i, n))
-                    batch = samples[i * batch_size:(i + 1) * batch_size]
-                    batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                    rnn_bool_list.extend(batch_out)
-                batch = samples[n * batch_size:len(samples)]
-                batch_out = (lang.is_words_in_batch(batch) > 0.5)
-                rnn_bool_list.extend(batch_out)
-                in_langs_lists.append(rnn_bool_list)
+            in_langs_lists.append([lang.is_word_in(w) for w in samples])
     else:
         in_langs_lists = previous_answers
         in_langs_lists.append([languages[-1].is_word_in(w) for w in samples])
@@ -453,4 +388,3 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
     output[0][1] = ([(in_langs_lists[0])[i] == (in_langs_lists[1])[i] for i in
                      range(len(samples))].count(False)) / len(samples)
     return output, samples, in_langs_lists[0:-1]
-
