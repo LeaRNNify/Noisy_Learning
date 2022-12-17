@@ -2,6 +2,8 @@ import datetime
 import logging
 import os
 import time
+from itertools import product
+
 import tabulate
 
 import numpy as np
@@ -37,26 +39,36 @@ def close_rand_counter_dfa(dfa):
 class BenchmarkingNoise:
     def __init__(self,
                  epsilons=(0.005,), deltas=(0.005,), word_probs=(0.01,), max_eq=250,
+                 max_extracted_dfa_worsen_distance=5,
                  p_noise=(0.01, 0.005, 0.0025, 0.0015, 0.001), dfa_noise=DFANoisy,
-                 min_dfa_state=20, max_dfa_states=60, max_alphabet_size=20, min_alphabet_size=4):
+                 min_dfa_state=20, max_dfa_states=60, max_alphabet_size=20, min_alphabet_size=4,
+                 dist_epsilon_delta=0.005):
         """
 
-        @param epsilons: epsilons for the PAC equivalence query
-        @param deltas: deltas for the PAC equivalence query
-        @param p_noise: the amount of noise we add when not using CounterDFA
-        @param dfa_noise: the type of noise
-        @param word_probs: the probability used in the geometrical random variable used to generate random words
-        @param max_eq: the maximal number of equivalence queries used to extract the DFA
-        @param min_dfa_state: the maximal number of states in the random DFA
-        @param max_dfa_states: the minimal number of states in the random DFA
-        @@param max_alphabet_size: the maximal size of the alphabet used in the random DFA
-        @@param min_alphabet_size: the minimal size of the alphabet used in the random DFA
-        """
+            @param epsilons: epsilons for the PAC equivalence query
+            @param deltas: deltas for the PAC equivalence query
+            @param word_probs: the probability used in the geometrical random variable used to generate random words
+            @param max_eq: the maximal number of equivalence queries used to extract the DFA
+            @param max_extracted_dfa_worsen_distance: while learning we check the distance of the currently extracted
+                   dfa to the target on, if the distance between measures happens more times than this number we stop
+                   the extraction.
+
+            @param p_noise: the amount of noise we add when not using CounterDFA
+            @param dfa_noise: the type of noise
+
+            @param min_dfa_state: the maximal number of states in the random DFA
+            @param max_dfa_states: the minimal number of states in the random DFA
+            @@param max_alphabet_size: the maximal size of the alphabet used in the random DFA
+            @@param min_alphabet_size: the minimal size of the alphabet used in the random DFA
+
+            @param dist_epsilon_delta: the epsilon and delta used for computing the distance of the models
+            """
         # PAC learning properties
         self.deltas = deltas
         self.word_probs = word_probs
         self.epsilons = epsilons
         self.max_eq = max_eq
+        self.max_extracted_dfa_worsen_distance = max_extracted_dfa_worsen_distance
 
         # Noisy DFA properties
         self.p_noise = p_noise
@@ -67,6 +79,9 @@ class BenchmarkingNoise:
         self.max_alphabet_size = max_alphabet_size
         self.max_dfa_states = max_dfa_states
         self.min_dfa_states = min_dfa_state
+
+        # Result distance computation
+        self.dist_epsilon_delta = dist_epsilon_delta
 
     def benchmarks_noise_model(self, num_benchmarks=10, save_dir=None):
         """
@@ -91,7 +106,6 @@ class BenchmarkingNoise:
 
             benchmarks = pd.concat([benchmarks, pd.DataFrame.from_records(benchmark_list)])
             logging.info(f"Finished benchmark {bench_num}/{num_benchmarks}, in {time.time() - start_time} sec")
-
 
         benchmarks.reset_index()
         benchmarks.to_csv(save_dir + "/results.csv")
@@ -156,61 +170,53 @@ class BenchmarkingNoise:
 
     def extract_measure(self, dfa: DFA, base_benchmark: dict, dir_name=None):
         benchmarks = []
-        num_of_retry = 1
-        for p in self.p_noise:
-            logging.debug(f"Running p_noise = {p}:")
+        # todo: Need to maybe add back num_of_retry = 1.
+        for p_noise, epsilon, word_prob in product(self.p_noise, self.epsilons, self.word_probs):
+            logging.debug(f"Running p_noise = {p_noise}:")
+            benchmark = base_benchmark.copy()
+            benchmark.update({'epsilon': epsilon, 'max_EQ': self.max_eq, 'word_prob': word_prob})
+            suffix = "EpDel-" + str(epsilon) + "MaxEQ" + str(self.max_eq) + "WProb" + str(word_prob)
             if self.dfa_noise == CounterDFA:
                 dfa_noisy = close_rand_counter_dfa(dfa)
             else:
-                dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions, mistake_prob=p)
-            for epsilon in self.epsilons:
-                for word_prob in self.word_probs:
-                    benchmark = base_benchmark.copy()
-                    models = [dfa, dfa_noisy]
-                    for _ in range(num_of_retry):
-                        benchmark.update({'epsilon': epsilon, 'max_EQ': self.max_eq, 'word_prob': word_prob})
-                        suffix = "EpDel-" + str(epsilon) + "MaxEQ" + str(self.max_eq) + "WProb" + str(word_prob)
-                        if type(dfa_noisy) == CounterDFA:
-                            benchmark['noise_type'] = "counter_DFA"
-                        elif type(dfa_noisy) == DFANoisy:
-                            benchmark.update({'noise_type': 'noisy_DFA', "mistake_prob": dfa_noisy.mistake_prob})
-                        else:
-                            benchmark.update({'noise_type': 'noisy_DFA', "mistake_prob": dfa_noisy.mistake_prob})
+                dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions, mistake_prob=p_noise)
+            models = [dfa, dfa_noisy]
 
-                        extracted_dfa = self.extract_dfa(dfa_noisy, benchmark, word_prob,
-                                                         epsilon=epsilon, delta=epsilon)
+            if type(dfa_noisy) == CounterDFA:
+                benchmark['noise_type'] = "counter_DFA"
+            elif type(dfa_noisy) == DFANoisy:
+                benchmark.update({'noise_type': 'noisy_DFA', "mistake_prob": dfa_noisy.mistake_prob})
+            else:
+                benchmark.update({'noise_type': 'noisy_input_DFA', "mistake_prob": dfa_noisy.mistake_prob})
 
-                        if dir_name is not None:
-                            save_dfa_as_part_of_model(dir_name, extracted_dfa,
-                                                      name="extracted_dfa_p" + suffix + "-3",
-                                                      force_overwrite=True)
-                        models.append(extracted_dfa)
-                    self.compute_distances(models, benchmark, epsilon=0.05,
-                                           word_prob=word_prob)
-                    benchmarks.append(benchmark)
+            extracted_dfa = self.extract_dfa(dfa_noisy, benchmark, word_prob,
+                                             epsilon=epsilon, delta=epsilon)
+            if dir_name is not None:
+                save_dfa_as_part_of_model(dir_name, extracted_dfa,
+                                          name="extracted_dfa_p" + suffix,
+                                          force_overwrite=True)
+            models.append(extracted_dfa)
+            self.compute_distances(models, benchmark, epsilon=self.dist_epsilon_delta,
+                                   word_prob=word_prob)
+            benchmarks.append(benchmark)
         return benchmarks
 
-    @staticmethod
-    def generate_random_alphabet(benchmark_summary):
+    def generate_random_alphabet(self, benchmark_summary):
         full_alphabet = "abcdefghijklmnopqrstuvwxyz"
-        alphabet = full_alphabet[0:np.random.randint(4, 20)]
+        alphabet = full_alphabet[0:np.random.randint(self.min_alphabet_size, self.max_alphabet_size)]
         benchmark_summary.update({"alph_len": len(alphabet)})
         return alphabet
 
-    @staticmethod
-    def extract_dfa(dfa, benchmark, word_probability=0.001, epsilon=0.001, delta=0.001):
+    def extract_dfa(self, dfa, benchmark, word_probability=0.001, epsilon=0.001, delta=0.001):
         teacher_pac = PACTeacher(dfa, epsilon, delta, word_probability=word_probability)
         logging.debug("Starting DFA extraction")
-        ###################################################
-        # Doing the model checking after a DFA extraction
-        ###################################################
+
         start_time = time.time()
         student = DecisionTreeLearner(teacher_pac)
 
-        # todo : this needs to be 5:
-        teacher_pac.teach_acc_noise_dist(student, 5)
+        teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
         logging.debug(student.dfa)
-        benchmark.update({"extraction_time": "{:.3}".format(time.time() - start_time)})
+        benchmark.update({"extraction_time": time.time() - start_time})
         benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
         benchmark.update({"membership_query": teacher_pac.number_of_mq})
         logging.debug("time = {}".format(time.time() - start_time))
