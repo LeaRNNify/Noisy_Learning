@@ -119,19 +119,25 @@ class BenchmarkingNoise:
         @param save_dir: where to save the results
         """
         summary_lines = []
-        for p in benchmarks['mistake_prob'].unique():
-            if benchmarks['noise_type'].iloc[0] == "noisy_DFA":
-                benchmarks['dist_dfa_noisy'] = p
 
-            benchmarks_p: pd.DataFrame = benchmarks.loc[benchmarks['mistake_prob'] == p]
+        if benchmarks['noise_type'].iloc[0] == "noisy_DFA":
+            benchmarks['dist_dfa_noisy'] = benchmarks['mistake_prob']
+
+        distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005]
+
+        for range_min, range_max in zip(distances[1:], distances[0:-2]):
+            benchmarks_p: pd.DataFrame = benchmarks.loc[(benchmarks['dist_dfa_noisy'] <= range_max) &
+                                                        (benchmarks['dist_dfa_noisy'] > range_min)]
             summary_lines.append(
-                {'mistake_prob': p,
+                {'range_min': range_min,
+                 'range_max': range_max,
                  'Dist to Noisy': benchmarks_p['dist_dfa_noisy'].mean(),
                  'Dist to Extracted': benchmarks_p['dist_dfa_extr'].mean(),
                  'Dist Noisy to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
                  'Gain': (benchmarks_p['dist_dfa_noisy'].mean() / benchmarks_p['dist_dfa_extr'].mean()),
                  'STD Original to Extracted': benchmarks_p['dist_dfa_extr'].std()
                  })
+
         summary: pd.DataFrame = pd.DataFrame.from_records(summary_lines)
         summary.to_csv(save_dir + "/results_summary.csv")
         logging.info("Summary of run: \n" + summary.to_markdown())
