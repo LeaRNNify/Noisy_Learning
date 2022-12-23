@@ -8,6 +8,7 @@ import numpy as np
 from counter_dfa import CounterDFA, NoisyCounterDFA, DFAFinalCount
 from dfa import DFA, DFANoisy
 from dfa_check import DFAChecker
+from learner_decison_tree import DecisionTreeLearner
 from noisy_input_dfa import NoisyInputDFA
 from random_words import random_word, confidence_interval_many_for_reuse, confidence_interval_many_cython, \
     confidence_interval_many_for_reuse_2
@@ -35,7 +36,7 @@ class StupidGuess:
 
 class PACTeacher(Teacher):
 
-    def __init__(self, model: DFA, epsilon=0.001, delta=0.001, word_probability=0.01):
+    def __init__(self, model: DFA, epsilon=0.001, delta=0.001, word_probability=0.01, max_refinements=1):
         assert ((epsilon <= 1) & (delta <= 1))
         Teacher.__init__(self, model)
         self.epsilon = epsilon
@@ -46,38 +47,27 @@ class PACTeacher(Teacher):
         self._word_probability = word_probability
         self.prev_examples = {}
         self.number_of_mq = 0
+        self.max_refinements = max_refinements
 
     def equivalence_query(self, dfa: DFA):
         """
         Tests whether the dfa is equivalent to the model by testing random words.
         If not equivalent returns an example
         """
-
-        # if dfa.is_word_in("") != self.model.is_word_in(""):
-        #     return ""
-
-        # number_of_rounds0 = int((self._log_delta - self._num_equivalence_asked) / self._log_one_minus_epsilon)
-
         number_of_rounds = int(
             (1 / self.epsilon) * (np.log(1 / self.delta) + np.log(2) * (self.num_equivalence_asked + 1)))
         self.num_equivalence_asked = self.num_equivalence_asked + 1
-        # print(number_of_rounds)
-
         batch_size = 1000
+
         for i in range(int(number_of_rounds / batch_size) + 1):
             self.number_of_mq = self.number_of_mq + 1000
             batch = random_words(batch_size, tuple(self.alphabet), int(1 / self._word_probability))
-            if isinstance(self.model, DFANoisy) or isinstance(self.model, NoisyInputDFA) or \
-                    isinstance(self.model, NoisyCounterDFA) or isinstance(self.model, UniformStohasticDFA):
-                mod_words = [self.model.is_word_in(w) for w in batch]
-            elif isinstance(self.model, CounterDFA):
+
+            if isinstance(self.model, CounterDFA):
                 mod_words = is_words_in_counterDfa(self.model, batch)
-            elif isinstance(self.model, DFAFinalCount):
-                mod_words = is_words_in_dfa_finalcount(self.model, batch)
-                mod_words1 = [self.model.is_word_in(w) for w in batch]
-                for w1, w2 in zip(mod_words, mod_words1):
-                    if w1 != w2:
-                        print("bababa")
+            else:
+                mod_words = [self.model.is_word_in(w) for w in batch]
+
             dfa_words = is_words_in_dfa(dfa, batch)
             for x, y, w in zip(mod_words, dfa_words, batch):
                 self.prev_examples[w] = x
@@ -114,22 +104,73 @@ class PACTeacher(Teacher):
             num_of_ref = learner.new_counterexample(counter, self.is_counter_example_in_batches, max_refinements=1)
             self.num_equivalence_asked += num_of_ref - 1
 
-    def teach_acc_noise_dist(self, learner, max_prev_larger_then_curr=3):
-        # todo: this neesd to be 0.01
-        confidence_width = 0.1
+    def teach_limited_equivalence_queries(self, learner: DecisionTreeLearner, equivalence_queries):
+        equivalence_queries_left = equivalence_queries
+        while equivalence_queries_left > 0:
+            counter = self.equivalence_query(learner.dfa)
+            if counter is None:
+                self.num_equivalence_asked += equivalence_queries - equivalence_queries_left
+                return True
+            num_of_refinements = learner.new_counterexample(counter, False,
+                                                            max_refinements=min(self.max_refinements,
+                                                                                equivalence_queries_left))
+            equivalence_queries_left -= num_of_refinements
 
+        self.num_equivalence_asked += equivalence_queries
+        return False
+
+    def teach_acc_noise_dist2(self, learner, max_prev_larger_then_curr=3):
         self.num_equivalence_asked = 0
+        confidence_width = 0.01
+        prev_dist, min_dist = 1, 1
+        min_dfa = None
+        samples = None
+        answers = None
+        while True:
+            finished_learning = self.teach_limited_equivalence_queries(learner, 20)
+
+            distances, samples, answers = confidence_interval_many_for_reuse_2([self.model, learner.dfa],
+                                                                               random_word,
+                                                                               samples=samples,
+                                                                               previous_answers=answers,
+                                                                               width=confidence_width,
+                                                                               confidence=confidence_width)
+            new_dist = distances[0][1]
+            if new_dist >= prev_dist:
+                max_prev_larger_then_curr -= 1
+            elif new_dist < min_dist:
+                min_dfa = learner.dfa
+                min_dist = new_dist
+            prev_dist = new_dist
+
+            logging.debug("this is the {}th round with: prev_dist = {}, "
+                          "new_dist = {}, min_dist = {}, Retries left: {}".format(self.num_equivalence_asked,
+                                                                                  round(prev_dist, 5),
+                                                                                  round(new_dist, 5),
+                                                                                  round(min_dist, 5),
+                                                                                  max_prev_larger_then_curr))
+
+            if finished_learning or max_prev_larger_then_curr < 0:
+                learner.dfa = min_dfa
+                return
+
+    def teach_acc_noise_dist(self, learner, max_prev_larger_then_curr=3):
+        self.num_equivalence_asked = 0
+        confidence_width = 0.01
         prev_dist = 1
         min_dist = 1
         samples = None
+
+        # times that the previous distance was larger than the current one
         count_prev_larger_then_curr = 0
+
         min_dfa = None
-        learner.teacher = self
         i = 0
         start_time = time.time()
         t100 = start_time
+
         while True:
-            if count_prev_larger_then_curr > max_prev_larger_then_curr:
+            if count_prev_larger_then_curr >= max_prev_larger_then_curr:
                 logging.debug(max_prev_larger_then_curr)
                 logging.debug(time.time() - start_time)
                 learner.dfa = min_dfa
@@ -138,10 +179,6 @@ class PACTeacher(Teacher):
 
             if self.num_equivalence_asked / 20 > i:
                 i = i + 1
-                # print("{} time has passed from the begging and {} from the last 100".format(time.time() - start_time,
-                #                                                                             time.time() - t100))
-                # new_dist = (confidence_interval_many_cython([self.model, learner.dfa], width=0.005, confidence=0.001))[
-                #     0]
                 if samples is None:
                     output, samples, answers = confidence_interval_many_for_reuse_2([self.model, learner.dfa],
                                                                                     random_word,
@@ -172,9 +209,10 @@ class PACTeacher(Teacher):
 
             counter = self.equivalence_query(learner.dfa)
             if counter is None:
+                learner.dfa = min_dfa
                 break
             num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
-            self.num_equivalence_asked += num_of_ref - 1
+            self.num_equivalence_asked += num_of_ref
 
     def teach_and_trace(self, student, dfa_model, timeout=900):
         num_of_state = 600

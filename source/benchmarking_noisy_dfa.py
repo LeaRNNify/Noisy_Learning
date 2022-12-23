@@ -123,7 +123,7 @@ class BenchmarkingNoise:
         if benchmarks['noise_type'].iloc[0] == "noisy_DFA":
             benchmarks['dist_dfa_noisy'] = benchmarks['mistake_prob']
 
-        distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005]
+        distances = [1, 0.025, 0.005, 0.0025, 0.0015, 0.001, 0.0005, 0.0001]
 
         for range_min, range_max in zip(distances[1:], distances[0:-2]):
             benchmarks_p: pd.DataFrame = benchmarks.loc[(benchmarks['dist_dfa_noisy'] <= range_max) &
@@ -131,6 +131,12 @@ class BenchmarkingNoise:
             summary_lines.append(
                 {'range_min': range_min,
                  'range_max': range_max,
+                 'num_benchmarks': len(benchmarks_p),
+                 'Mean Alphabet Size': benchmarks_p['alph_len'].mean(),
+                 'Mean DFA State': benchmarks_p['dfa_states'].mean(),
+                 'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
+                 'Mean Extracted DFA State': benchmarks_p['dfa_extract_states'].mean(),
+                 'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
                  'Dist to Noisy': benchmarks_p['dist_dfa_noisy'].mean(),
                  'Dist to Extracted': benchmarks_p['dist_dfa_extr'].mean(),
                  'Dist Noisy to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
@@ -220,7 +226,7 @@ class BenchmarkingNoise:
         start_time = time.time()
         student = DecisionTreeLearner(teacher_pac)
 
-        teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
+        teacher_pac.teach_acc_noise_dist2(student, self.max_extracted_dfa_worsen_distance)
         logging.debug(student.dfa)
         benchmark.update({"extraction_time": time.time() - start_time})
         benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
