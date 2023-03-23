@@ -112,7 +112,8 @@ class BenchmarkingNoise:
             start_time = time.time()
             logging.info("Running benchmark {}/{}".format(bench_num, num_benchmarks))
             dfa = None
-            if dfas is not None:
+            #old version: if dfas is not None: (index out of range)
+            if dfas is not None and len(dfas)>=bench_num:
                 dfa = dfas[bench_num - 1]
             benchmark_list = self.rand_benchmark(
                 save_dir + "/" + format(datetime.datetime.now().strftime("%d-%b-%Y_%H-%M-%S")) + str(bench_num), dfa)
@@ -166,12 +167,18 @@ class BenchmarkingNoise:
     def rand_benchmark(self, save_dir=None, dfa=None):
         base_benchmark_summary = {}
 
-        if dfa is None:
+        '''if dfa is None:
             dfa = self.rand_dfa()
             alphabet = dfa.alphabet
         else:
             alphabet = self.generate_random_alphabet()
+            dfa = self.generate_random_dfa_and_save(alphabet, save_dir)'''
+            
+        if dfa is None:
+            alphabet = self.generate_random_alphabet()
             dfa = self.generate_random_dfa_and_save(alphabet, save_dir)
+        else:
+            alphabet=dfa.alphabet
 
         base_benchmark_summary.update({"alph_len": len(alphabet)})
         base_benchmark_summary.update(

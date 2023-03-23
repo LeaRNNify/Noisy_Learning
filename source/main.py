@@ -9,6 +9,7 @@ from noisy_input_dfa import NoisyInputDFA
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 np.random.seed(seed=2)
+# to do: epsilons->pac_epsilons
 # todo remove epsilon and 0.001 noise
 benchmark_noisy_dfa = BenchmarkingNoise(epsilons=(0.001,), p_noise=[0.01, 0.005, 0.0025, 0.0015, 0.001])
 benchmark_noisy_dfa.benchmarks_noise_model(10)

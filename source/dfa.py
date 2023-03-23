@@ -508,3 +508,48 @@ class DFANoisy(DFA):
         else:
             self.known_mistakes.update({word: label})
             return label
+            
+class DFAsubSuper(DFA):
+    def __init__(self, init_state, final_states, transitions, acc_prob=0.5):
+        super().__init__(init_state, final_states, transitions)
+        self.acc_prob = acc_prob
+        self.known_acceptance = {}
+    
+    def create_dfa_super(self):
+        return self
+
+    # @functools.lru_cache(maxsize=None)
+    def is_word_in(self, word):
+        if word in self.known_acceptance:
+            return self.known_acceptance[word]
+        
+        dfa_super=self.create_dfa_super()
+        
+        state = self.init_state
+        state_super=dfa_super.init_state
+        for letter in word:
+            state = self.transitions[state][letter]
+            state_super = dfa_super.transitions[state_super][letter]
+        label = state in self.final_states
+        label_super=state_super in dfa_super.final_states
+        
+        if label:
+            self.known_mistakes.update({word: label})
+            return label
+        if not label_super:
+            self.known_mistakes.update({word: label_super})
+            return label_super
+        else:
+            if np.random.randint(0, 2) == 0:
+                self.known_mistakes.update({word: True})
+                return True
+            else:
+                self.known_mistakes.update({word: False})
+                return False
+
+        '''if np.random.randint(0, int(1 / self.mistake_prob)) == 0:
+            self.known_mistakes.update({word: not label})
+            return not label
+        else:
+            self.known_mistakes.update({word: label})
+            return '''
