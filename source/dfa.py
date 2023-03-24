@@ -510,41 +510,77 @@ class DFANoisy(DFA):
             return label
             
 class DFAsubSuper(DFA):
-    def __init__(self, init_state, final_states, transitions, acc_prob=0.5):
+    def __init__(self, init_state, final_states, transitions,  dfa_super, acc_prob=0.5, len_cri_trace=5):
         super().__init__(init_state, final_states, transitions)
         self.acc_prob = acc_prob
+        self.len_cri_trace=len_cri_trace
+        self.dfa_super=self.create_dfa_super()
         self.known_acceptance = {}
+        
+    def cycle_critial_trace(self, critical_trace):
+        state=self.init_state
+        visite={state:1}
+        for letter in critical_trace:
+            if not self.transitions[state][letter] in visite:
+                state=self.transitions[state][letter]
+                visite.update({state:1})
+            else:
+                return True
+        return False
+        
+    def find_critical_trace(self, state, critical_trace):
+        if len(critical_trace)==self.len_cri_trace:
+            if self.cycle_critial_trace(critical_trace):
+                return critical_trace
+            else:
+                return
+        for letter in self.alphabet:
+            if self.transitions[state][letter] not in self.final_states:
+                state=self.transitions[state][letter]
+                critical_trace.append(letter)
+                self.find_critical_trace(state, critical_trace)
     
     def create_dfa_super(self):
-        return self
+        #to do: update final states and transitions for dfa_super
+        critical_trace=[]
+        state=self.init_state
+        ctl_trace=self.find_critical_trace(state, critical_trace)
+        if ctl_trace is not None:
+            states_super=self.states.append(self.len_cri_trace)
+            transitions_super=self.transitions
+            final_states_super=self.final_states
+            return DFA(self.init_state, final_states_super, transitions_super)
+        else:
+            return None
+            
+             
 
     # @functools.lru_cache(maxsize=None)
     def is_word_in(self, word):
         if word in self.known_acceptance:
             return self.known_acceptance[word]
         
-        dfa_super=self.create_dfa_super()
-        
         state = self.init_state
-        state_super=dfa_super.init_state
+        state_super=self.init_state
         for letter in word:
             state = self.transitions[state][letter]
-            state_super = dfa_super.transitions[state_super][letter]
+            state_super = self.dfa_super.transitions[state_super][letter]
         label = state in self.final_states
-        label_super=state_super in dfa_super.final_states
+        label_super=state_super in  self.dfa_super.final_states
         
         if label:
-            self.known_mistakes.update({word: label})
+            self.known_acceptance.update({word: label})
             return label
         if not label_super:
-            self.known_mistakes.update({word: label_super})
+            self.known_acceptance.update({word: label_super})
             return label_super
         else:
-            if np.random.randint(0, 2) == 0:
-                self.known_mistakes.update({word: True})
+            label_random= (np.random.randint(0, 2) == 0)
+            if label_random:
+                self.known_acceptance.update({word: True})
                 return True
             else:
-                self.known_mistakes.update({word: False})
+                self.known_acceptance.update({word: False})
                 return False
 
         '''if np.random.randint(0, int(1 / self.mistake_prob)) == 0:
