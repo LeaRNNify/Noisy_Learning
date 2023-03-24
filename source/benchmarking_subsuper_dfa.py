@@ -31,8 +31,7 @@ def load_dfas(dfa_dir):
     dfas = []
     for dir in os.listdir(dfa_dir):
         dfa = load_dfa_dot(os.path.join(dfa_dir, dir, "dfa.dot"))
-        if verify_valid(dfa):
-            dfas.append(dfa)
+        dfas.append(dfa)
     return dfas
 
 
@@ -228,22 +227,37 @@ class BenchmarkingSubSuper:
             benchmarks.append(benchmark)
         return benchmarks
     
-    def generate_super_dfa(dfa):
-        #to do: find the critical path before creating the super one
-        super_dfa=dfa
-        return super_dfa
 
     def generate_random_alphabet(self):
         full_alphabet = "abcdefghijklmnopqrstuvwxyz"
         alphabet = full_alphabet[0:np.random.randint(self.min_alphabet_size, self.max_alphabet_size)]
         return alphabet
 
-    def extract_subsuper_dfa(self, dfa, dfa_super, benchmark, epsilon=0.001, delta=0.001):
-        '''create a set of random words based on dfa and dfa_super
-           such that 1/3 in dfa, 1/3 in dfa_super and 1/3 between.
+    def extract_subsuper_dfa(self, dfa, benchmark, word_probability=0.001,epsilon=0.001, delta=0.001):
+        '''First version: completely randomly generate
+           Second version:  create a set of random words
+           based on dfa and dfa_super such that 1/3 in dfa,
+           1/3 in dfa_super and 1/3 between.
            A new dfa extracted from this set of random words'''
         
-        dfa_extract=dfa
+        teacher_pac = PACTeacher(dfa, epsilon, delta, word_probability=word_probability)
+        logging.debug("Starting DFA extraction")
+
+        start_time = time.time()
+        student = DecisionTreeLearner(teacher_pac)
+
+        #to do: adapte the following for subsuper dfa
+        teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
+        logging.debug(student.dfa)
+        benchmark.update({"extraction_time": time.time() - start_time})
+        benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
+        benchmark.update({"membership_query": teacher_pac.number_of_mq})
+        logging.debug("time = {}".format(time.time() - start_time))
+        dfa_extract = minimize_dfa(student.dfa)
+        logging.debug(dfa_extract)
+        benchmark.update({"dfa_extract_states": len(dfa_extract.states),
+                          "dfa_extract_final": len(dfa_extract.final_states)})
+
         return dfa_extract
 
     @staticmethod
