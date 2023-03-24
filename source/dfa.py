@@ -541,19 +541,25 @@ class DFAsubSuper(DFA):
                 self.find_critical_trace(state, critical_trace)
     
     def create_dfa_super(self):
-        #to do: update final states and transitions for dfa_super
+        #to do: $\delta_2(q_i', a)=\delta_1(q_i, a), a\in\Sigma\setminus\{a_{i+1}\}$
         critical_trace=[]
         state=self.init_state
         ctl_trace=self.find_critical_trace(state, critical_trace)
         if ctl_trace is not None:
-            states_super=self.states.append(self.len_cri_trace)
-            transitions_super=self.transitions
-            final_states_super=self.final_states
+            new_state=len(self.states)+1
+            transitions_super=self.transitions.copy()
+            for letter in ctl_trace:
+                transitions_super[state][letter]=new_state
+                state=new_state
+                new_state=state+1
+            for letter in self.alphabet:
+                transitions_super[new_state][letter]=new_state
+            final_states_super=self.final_states.copy()
+            final_states_super.append(new_state)
             return DFA(self.init_state, final_states_super, transitions_super)
         else:
             return None
             
-             
 
     # @functools.lru_cache(maxsize=None)
     def is_word_in(self, word):
@@ -589,3 +595,4 @@ class DFAsubSuper(DFA):
         else:
             self.known_mistakes.update({word: label})
             return '''
+
