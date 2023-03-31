@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from counter_dfa import from_dfa_to_rand_counter_dfa, CounterDFA
-from dfa import DFA, random_dfa, save_dfa_as_part_of_model, DFANoisy, load_dfa_dot
+from dfa import DFA, random_dfa, save_dfa_as_part_of_model, DFANoisy, load_dfa_dot, DFAsubSuper
 from exact_teacher import ExactTeacher
 from learner_decison_tree import DecisionTreeLearner
 from pac_teacher import PACTeacher
@@ -39,7 +39,7 @@ class BenchmarkingSubSuper:
     def __init__(self,
                  pac_epsilons=(0.005,), pac_deltas=(0.005,), word_probs=(0.01,), max_eq=250,
                  max_extracted_dfa_worsen_distance=5,
-                 p_noise=(0.01, 0.005, 0.0025, 0.0015, 0.001), dfa_noise=DFANoisy,
+                 p_noise=(0.01, 0.005, 0.0025, 0.0015, 0.001), dfa_noise=DFAsubSuper,
                  min_dfa_state=20, max_dfa_states=60, max_alphabet_size=20, min_alphabet_size=4,
                  dist_epsilon_delta=0.005):
         """
@@ -210,12 +210,14 @@ class BenchmarkingSubSuper:
             benchmark.update({'epsilon': epsilon, 'max_EQ': self.max_eq, 'word_prob': word_prob})
             suffix = "EpDel-" + str(epsilon) + "MaxEQ" + str(self.max_eq) + "WProb" + str(word_prob)
              
-            dfa_super = self.generate_super_dfa(dfa)
-            models = [dfa, dfa_super]
+            dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions)
+            #models = [dfa, dfa_noisy]
+            models = [dfa, dfa_noisy.dfa_super]
+            
 
-            benchmark.update({'noise_type': 'noisy_subsuper_DFA', "mistake_prob": dfa_super.mistake_prob})
+            benchmark.update({'noise_type': 'noisy_subsuper_DFA', "acc_prob": dfa_noisy.acc_prob})
 
-            extracted_dfa = self.extract_subsuper_dfa(dfa, dfa_super, benchmark,
+            extracted_dfa = self.extract_subsuper_dfa(dfa_noisy, benchmark,
                                              epsilon=epsilon, delta=epsilon)
             if dir_name is not None:
                 save_dfa_as_part_of_model(dir_name, extracted_dfa,

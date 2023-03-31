@@ -510,14 +510,17 @@ class DFANoisy(DFA):
             return label
             
 class DFAsubSuper(DFA):
-    def __init__(self, init_state, final_states, transitions,  dfa_super, acc_prob=0.5, len_cri_trace=5):
+    def __init__(self, init_state, final_states, transitions, acc_prob=0.5, len_cri_trace=3):
         super().__init__(init_state, final_states, transitions)
         self.acc_prob = acc_prob
         self.len_cri_trace=len_cri_trace
         self.dfa_super=self.create_dfa_super()
         self.known_acceptance = {}
-        
+      
     def cycle_critial_trace(self, critical_trace):
+        '''the current version is not sufficient
+           to do: check if after critical_trace we have bottom SCC
+           from which there is no path to final state'''
         state=self.init_state
         visite={state:1}
         for letter in critical_trace:
@@ -548,10 +551,12 @@ class DFAsubSuper(DFA):
         if ctl_trace is not None:
             new_state=len(self.states)+1
             transitions_super=self.transitions.copy()
+            #create the set of new transitions with new states
             for letter in ctl_trace:
                 transitions_super[state][letter]=new_state
                 state=new_state
                 new_state=state+1
+            #self-cycle for the lastly created final state
             for letter in self.alphabet:
                 transitions_super[new_state][letter]=new_state
             final_states_super=self.final_states.copy()
