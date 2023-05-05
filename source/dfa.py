@@ -510,55 +510,99 @@ class DFANoisy(DFA):
             return label
             
 class DFAsubSuper(DFA):
-    def __init__(self, init_state, final_states, transitions, acc_prob=0.5, len_cri_trace=3):
+    def __init__(self, init_state, final_states, transitions, acc_prob=0.5, len_cri_trace=2):
         super().__init__(init_state, final_states, transitions)
         self.acc_prob = acc_prob
         self.len_cri_trace=len_cri_trace
         self.dfa_super=self.create_dfa_super()
         self.known_acceptance = {}
-      
-    def cycle_critial_trace(self, critical_trace):
-        '''the current version is not sufficient
-           to do: check if after critical_trace we have bottom SCC
-           from which there is no path to final state'''
+                
+    def find_sp_bscc(self, b):
         state=self.init_state
-        visite={state:1}
-        for letter in critical_trace:
-            if not self.transitions[state][letter] in visite:
-                state=self.transitions[state][letter]
-                visite.update({state:1})
-            else:
-                return True
-        return False
+        lnext=[state]
+        reached={state:True}
+        sp={}
+        while len(lnext)>0:
+            n=lnext.pop(0)
+            if n in b:
+                #print(sp)
+                return self.sp_prune(n, sp)
+            for letter in self.alphabet:
+                state_tem=self.transitions[n][letter]
+                if n not in sp:
+                    sp[n]={letter:state_tem}
+                else:
+                    sp[n][letter]=state_tem
+                if not state_tem in reached:
+                    reached[state_tem]=True
+                    lnext.append(state_tem)
+        return None, None
+    
+    def sp_prune(self, state, sp):
+        res={}
+        state_tem=state
+        visited={state_tem:True}
+         
+        while state_tem!=self.init_state:
+            state_letters = [[k, v] for k, v in sp.items() if state_tem in list(v.values()) and k not in visited]
+            #print("state_letters")
+            #print(state_letters)
+            for k in list(state_letters[0][1].keys()):
+                if state_letters[0][1][k]==state_tem:
+                    res[state_letters[0][0]]={k:state_tem}
+                    state_tem=state_letters[0][0]
+                    visited[state_tem]=True
+                    break
+        #print("res")
+        #print(res)
+        return res, state
         
-    def find_critical_trace(self, state, critical_trace):
-        if len(critical_trace)==self.len_cri_trace:
-            if self.cycle_critial_trace(critical_trace):
-                return critical_trace
-            else:
-                return
-        for letter in self.alphabet:
-            if self.transitions[state][letter] not in self.final_states:
-                state=self.transitions[state][letter]
-                critical_trace.append(letter)
-                self.find_critical_trace(state, critical_trace)
+                
+    def find_critical_bscc(self):
+        bscc=self.bottom_strongly_connected_components()
+        for b in bscc:
+            if not (set(b) & set(self.final_states)):
+                sp=self.find_sp_bscc(b)
+                if len(sp[0])==self.len_cri_trace:
+                    return sp
+                else:
+                    self.len_cri_trace=len(sp[0])
+                    return sp
+        return None
+    
+    
     
     def create_dfa_super(self):
-        #to do: $\delta_2(q_i', a)=\delta_1(q_i, a), a\in\Sigma\setminus\{a_{i+1}\}$
-        critical_trace=[]
-        state=self.init_state
-        ctl_trace=self.find_critical_trace(state, critical_trace)
+        ctl_trace=self.find_critical_bscc()
+        
+        #ctl_trace is a tuple of critical trace and end state
         if ctl_trace is not None:
+            end_state, trace=ctl_trace[1], ctl_trace[0]
             new_state=len(self.states)+1
-            transitions_super=self.transitions.copy()
-            #create the set of new transitions with new states
-            for letter in ctl_trace:
-                transitions_super[state][letter]=new_state
-                state=new_state
-                new_state=state+1
+            transitions_super={key: deepcopy(value) for key, value in self.transitions.items()}
+            state_trace=self.init_state
+            letter=list(trace[state_trace].keys())[0]
+            transitions_super[state_trace][letter]=new_state
+            next_state_trace=list(trace[state_trace].values())[0]
+            while state_trace!=end_state:
+                
+                state_trace=next_state_trace
+                
+                if state_trace!=end_state:
+                    next_state_trace=list(trace[state_trace].values())[0]
+                    letter=list(trace[state_trace].keys())[0]
+                    transitions_super[new_state]={letter:new_state+1}
+                    for letter1 in self.alphabet:
+                        if letter1!=letter:
+                            transitions_super[new_state][letter1]=self.transitions[state_trace][letter1]
+                    
+                    new_state=new_state+1
             #self-cycle for the lastly created final state
             for letter in self.alphabet:
-                transitions_super[new_state][letter]=new_state
+                if new_state not in transitions_super:
+                    transitions_super[new_state]={letter:new_state}
+                else:
+                    transitions_super[new_state][letter]=new_state
             final_states_super=self.final_states.copy()
             final_states_super.append(new_state)
             return DFA(self.init_state, final_states_super, transitions_super)
@@ -600,4 +644,26 @@ class DFAsubSuper(DFA):
         else:
             self.known_mistakes.update({word: label})
             return '''
+            
+def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
+    assert min_state < max_states
+    states = np.random.randint(min_state, max_states)
+    final_state = np.random.randint(3, states - 1)
+    initial_state = 0
+    #final_states = np.random.choice(states, size=num_of_final, replace=False)
 
+    transitions = {}
+    for s in range(states):
+        transitions[s]={}
+    transitions[0][alphabet[0]]=1
+    transitions[1][alphabet[1]]=2
+    for l in alphabet:
+        transitions[2][l]=2
+        transitions[final_state][l]=final_state
+        
+    for s in range(states):
+        for l in alphabet:
+            if not l in transitions[s]:
+                q = np.random.randint(0, states)
+                transitions[s][l]=q
+    return DFA(initial_state, [final_state], transitions)
