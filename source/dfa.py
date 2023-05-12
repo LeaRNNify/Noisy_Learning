@@ -151,6 +151,7 @@ class DFA:
                 self.successors = trans
 
         vertices = {q: Vertex(q, set(self.transitions[q].values())) for q in self.states}
+        #print(vertices)
 
         # print("finish prepare")
 
@@ -345,6 +346,7 @@ class DFA:
 
 
 def random_dfa(alphabet, min_state=10, max_states=100) -> DFA:
+    print("testing")
     assert min_state < max_states
     states = np.random.randint(min_state, max_states)
     num_of_final = np.random.randint(1, states - 1)
@@ -361,6 +363,7 @@ def random_dfa(alphabet, min_state=10, max_states=100) -> DFA:
 
     return DFA(initial_state, final_states.tolist(), transitions)
 
+     
 
 def change_all_transition_for_rand_n_state(dfa: DFA, num_of_states=1) -> DFA:
     dfa2 = deepcopy(dfa)
@@ -473,8 +476,6 @@ def synchronised_self_with_dfa(dfa0: DFA, dfa1: DFA):
     f1 = [(q0, q1) for q0, q1 in sync_states if q0 in dfa0.final_states and q1 not in dfa1.final_states]
     sync_final = f0 + f1
 
-    # print(sync_states)
-    # print(sync_alph)
 
     sync_transition = {}
     for s in sync_states:
@@ -508,7 +509,7 @@ class DFANoisy(DFA):
         else:
             self.known_mistakes.update({word: label})
             return label
-            
+
 class DFAsubSuper(DFA):
     def __init__(self, init_state, final_states, transitions, acc_prob=0.5, len_cri_trace=2):
         super().__init__(init_state, final_states, transitions)
@@ -560,8 +561,12 @@ class DFAsubSuper(DFA):
                 
     def find_critical_bscc(self):
         bscc=self.bottom_strongly_connected_components()
+        #print("scc")
+        #print(bscc)
         for b in bscc:
             if not (set(b) & set(self.final_states)):
+                #print("bb")
+                #print(b)
                 sp=self.find_sp_bscc(b)
                 if len(sp[0])==self.len_cri_trace:
                     return sp
@@ -579,7 +584,9 @@ class DFAsubSuper(DFA):
         if ctl_trace is not None:
             end_state, trace=ctl_trace[1], ctl_trace[0]
             new_state=len(self.states)+1
+            #my_copy = {key: value[:] for key, value in my_dict.items()}
             transitions_super={key: deepcopy(value) for key, value in self.transitions.items()}
+            #transitions_super=self.transitions.copy()
             state_trace=self.init_state
             letter=list(trace[state_trace].keys())[0]
             transitions_super[state_trace][letter]=new_state
@@ -667,3 +674,4 @@ def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
                 q = np.random.randint(0, states)
                 transitions[s][l]=q
     return DFA(initial_state, [final_state], transitions)
+

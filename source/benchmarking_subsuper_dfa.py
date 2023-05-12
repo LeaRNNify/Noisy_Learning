@@ -33,10 +33,10 @@ def load_dfas(dfa_dir):
 
 class BenchmarkingSubSuper:
     def __init__(self,
-                 pac_epsilons=(0.005,), pac_deltas=(0.005,), word_probs=(0.01,), max_eq=250,
-                 max_extracted_dfa_worsen_distance=5,
+                 pac_epsilons=(0.005,), pac_deltas=(0.005,), word_probs=(0.05,), max_eq=250,
+                 max_extracted_dfa_worsen_distance=3,
                  p_noise=(0.01, 0.005, 0.0025, 0.0015, 0.001), dfa_noise=DFAsubSuper,
-                 min_dfa_state=20, max_dfa_states=60, max_alphabet_size=20, min_alphabet_size=4,
+                 min_dfa_state=20, max_dfa_states=60, max_alphabet_size=26, min_alphabet_size=15,
                  dist_epsilon_delta=0.005):
         """
 
@@ -85,7 +85,7 @@ class BenchmarkingSubSuper:
         @param save_dir: the directory to save the results if none then creates a new one
         """
         if save_dir is None:
-            save_dir = "../models/random_bench_noisy_dfa_{}".format(
+            save_dir = "../models/random_bench_subsuper_dfa_{}".format(
                 datetime.datetime.now().strftime("%d-%b-%Y_%H-%M-%S"))
             os.makedirs(save_dir)
 
@@ -130,7 +130,7 @@ class BenchmarkingSubSuper:
         #distances = [1, 0.025, 0.005, 0.0025, 0.0015, 0.001, 0.0005, 0.0001]
         distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005]
 
-        for range_min, range_max in zip(distances[1:], distances[0:-2]):
+        for range_min, range_max in zip(distances[1:], distances[0:-1]):
             benchmarks_p: pd.DataFrame = benchmarks.loc[(benchmarks['dist_dfa_noisy'] <= range_max) &
                                                         (benchmarks['dist_dfa_noisy'] > range_min)]
             summary_lines.append(
@@ -192,41 +192,40 @@ class BenchmarkingSubSuper:
         """
         #i=0
         while True:
-            dfa = random_subsuper_dfa(alphabet, min_state=self.min_dfa_states, max_states=self.max_dfa_states)
-            
+            dfa= random_subsuper_dfa(alphabet, min_state=self.min_dfa_states, max_states=self.max_dfa_states)
+            #dfa=minimize_dfa(dfa_rand)
             if len(dfa.states) > self.min_dfa_states: #and dfa_super.dfa_super is not None:
                 break
 
         if save_dir is not None:
             save_dfa_as_part_of_model(save_dir, dfa, name="dfa")
-        print("terminate dfa")
         return dfa
 
     def subsuper_extract_measure(self, dfa: DFA, base_benchmark: dict, dir_name=None):
+        
         benchmarks = []
         # p_noise represents the acceptance rate when word is between.
-        for p_noise, epsilon, word_prob in product(self.p_noise, self.pac_epsilons, self.word_probs):
-            logging.debug(f"Running subsuper_noise = {p_noise}:")
-            benchmark = base_benchmark.copy()
-            benchmark.update({'epsilon': epsilon, 'max_EQ': self.max_eq, 'word_prob': word_prob})
-            suffix = "EpDel-" + str(epsilon) + "MaxEQ" + str(self.max_eq) + "WProb" + str(word_prob)
+        #for p_noise, epsilon, word_prob in product(self.p_noise, self.pac_epsilons, self.word_probs):
+        #logging.debug(f"Running subsuper_noise = {p_noise}:")
+        benchmark = base_benchmark.copy()
+        benchmark.update({'epsilon': self.pac_epsilons[0], 'max_EQ': self.max_eq, 'word_prob': self.word_probs[0]})
+        suffix = "EpDel-" + str(self.pac_epsilons[0]) + "MaxEQ" + str(self.max_eq) + "WProb" + str(self.word_probs[0])
             
-            dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions)
+        dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions)
+        models = [dfa_noisy, dfa_noisy.dfa_super]
             
-            models = [dfa, dfa_noisy.dfa_super]
-            
-            benchmark.update({'noise_type': 'noisy_subsuper_DFA', "acc_prob": dfa_noisy.acc_prob})
+        benchmark.update({'noise_type': 'noisy_subsuper_DFA', "acc_prob": dfa_noisy.acc_prob})
 
-            extracted_dfa = self.extract_subsuper_dfa(dfa_noisy, benchmark,
-                                             epsilon=epsilon, delta=epsilon)
-            if dir_name is not None:
-                save_dfa_as_part_of_model(dir_name, extracted_dfa,
+        extracted_dfa = self.extract_subsuper_dfa(dfa_noisy, benchmark,
+                                             epsilon=self.pac_epsilons[0], delta=self.pac_epsilons[0])
+        if dir_name is not None:
+            save_dfa_as_part_of_model(dir_name, extracted_dfa,
                                           name="extracted_dfa_p" + suffix,
                                           force_overwrite=True)
-            models.append(extracted_dfa)
-            self.compute_distances(models, benchmark, epsilon=self.dist_epsilon_delta,
-                                   word_prob=word_prob)
-            benchmarks.append(benchmark)
+        models.append(extracted_dfa)
+        self.compute_distances(models, benchmark, epsilon=self.dist_epsilon_delta,
+                                   word_prob=self.word_probs[0])
+        benchmarks.append(benchmark)
         return benchmarks
 
 
@@ -242,7 +241,7 @@ class BenchmarkingSubSuper:
            1/3 in dfa_super and 1/3 between.
            A new dfa extracted from this set of random words'''
         
-        teacher_pac = PACTeacher(dfa, epsilon, delta, word_probability=word_probability)
+        teacher_pac = PACTeacher(dfa, epsilon, delta, word_probability=0.005)
         logging.debug("Starting DFA extraction")
 
         start_time = time.time()
@@ -268,7 +267,13 @@ class BenchmarkingSubSuper:
     def compute_distances(models, benchmark, epsilon=0.01, delta=0.005, word_prob=0.01):
         start_time = time.time()
         logging.debug("Starting distance measuring")
-        output, samples = confidence_interval_many_cython(models, width=epsilon, confidence=delta, word_prob=word_prob)
+        print("begin distance measuring")
+        output, samples = confidence_interval_many_cython(models, width=0.001, confidence=delta, word_prob=0.05)
+        print("distance dfa noisy")
+        print(output[0][1])
+        print("theoretical distance")
+        dis=pow((1/len(models[0].alphabet)), models[0].len_cri_trace)
+        print(dis)
         logging.debug("The confidence interval for epsilon = {} , delta = {}".format(epsilon, delta))
         logging.debug(output)
         dist_2_original = np.average(output[0][2:])
