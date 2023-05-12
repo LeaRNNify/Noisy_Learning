@@ -3,20 +3,26 @@ import logging
 import numpy as np
 
 from benchmarking_noisy_dfa import BenchmarkingNoise
+from benchmarking_subsuper_dfa import BenchmarkingSubSuper
 from counter_dfa import CounterDFA
+from dfa import DFAsubSuper
 from noisy_input_dfa import NoisyInputDFA
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 np.random.seed(seed=2)
-# to do: epsilons->pac_epsilons
 # todo remove epsilon and 0.001 noise
-benchmark_noisy_dfa = BenchmarkingNoise(epsilons=(0.001,), p_noise=[0.01, 0.005, 0.0025, 0.0015, 0.001])
-benchmark_noisy_dfa.benchmarks_noise_model(10)
-benchmark_noisy_dfa = BenchmarkingNoise(epsilons=(0.001,), p_noise=[0.005, 0.001, 0.0005, 0.0001], dfa_noise=NoisyInputDFA)
-benchmark_noisy_dfa.benchmarks_noise_model(10)
-benchmark_noisy_dfa = BenchmarkingNoise(epsilons=(0.001,), p_noise=[], dfa_noise=CounterDFA)
-benchmark_noisy_dfa.benchmarks_noise_model(100)
+#benchmark_noisy_dfa = BenchmarkingNoise(pac_epsilons=(0.001,), p_noise=[0.01, 0.005, 0.0025, 0.0015, 0.001])
+#benchmark_noisy_dfa.benchmarks_noise_model(10)
+
+#benchmark_noisy_dfa = BenchmarkingNoise(pac_epsilons=(0.001,), p_noise=[0.005, 0.001, 0.0005, 0.0001], dfa_noise=NoisyInputDFA)
+#benchmark_noisy_dfa.benchmarks_noise_model(10)
+
+benchmark_noisy_dfa = BenchmarkingSubSuper(pac_epsilons=(0.001,), p_noise=[0.005, 0.001, 0.0005, 0.0001], dfa_noise=DFAsubSuper)
+benchmark_noisy_dfa.benchmarks_subsuper_model(180)
+
+#benchmark_noisy_dfa = BenchmarkingNoise(pac_epsilons=(0.001,), p_noise=[], dfa_noise=CounterDFA)
+#benchmark_noisy_dfa.benchmarks_noise_model(100)
 
 # benchmarks_noise_model(num_of_bench=2, epsilons=(0.1,), p_noise=[0.005, 0.001], save_dir=None)
 # benchmarks_noise_model(num_of_bench=1, p_noise=[0.0005], dfa_noise=NoisyInputDFA,

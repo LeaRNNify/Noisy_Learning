@@ -191,7 +191,7 @@ class PACTeacher(Teacher):
                                                                               confidence=confidence_width)
 
                 new_dist = output[0][1]
-                # print(new_dist)
+                
                 if new_dist >= prev_dist:
                     count_prev_larger_then_curr += 1
                 if new_dist < min_dist:

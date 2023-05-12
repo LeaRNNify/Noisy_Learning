@@ -283,7 +283,7 @@ def confidence_interval_many_cython(languages, confidence=0.001, width=0.005, sa
         # torch.cuda.empty_cache() /notsure wtf is this??
         for lang in languages:
             # print(lang)
-            if isinstance(lang, DFANoisy) or isinstance(lang, NoisyInputDFA) or isinstance(lang, NoisyCounterDFA):
+            if isinstance(lang, DFANoisy) or isinstance(lang, NoisyInputDFA) or isinstance(lang, NoisyCounterDFA) or isinstance(lang, DFAsubSuper):
                 # print("noisy DFA")
                 in_langs_lists.append([lang.is_word_in(w) for w in samples])
             elif isinstance(lang, DFAFinalCount):

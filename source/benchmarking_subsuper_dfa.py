@@ -139,13 +139,13 @@ class BenchmarkingSubSuper:
                  'num_benchmarks': len(benchmarks_p),
                  'Mean Alphabet Size': benchmarks_p['alph_len'].mean(),
                  'Mean DFA State': benchmarks_p['dfa_states'].mean(),
-                 'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
+                 #'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
                  'Mean Extracted DFA State': benchmarks_p['dfa_extract_states'].mean(),
-                 'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
-                 'Dist to Noisy': benchmarks_p['dist_dfa_noisy'].mean(),
+                 #'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
+                 'Dist to SuperDfa': benchmarks_p['dist_dfa_noisy'].mean(),
                  'Dist to Extracted': benchmarks_p['dist_dfa_extr'].mean(),
-                 'Dist Noisy to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
-                 'Gain': (benchmarks_p['dist_dfa_noisy'].mean() / benchmarks_p['dist_dfa_extr'].mean()),
+                 'Dist SuperDfa to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
+                 #'Gain': (benchmarks_p['dist_dfa_noisy'].mean() / benchmarks_p['dist_dfa_extr'].mean()),
                  'STD Original to Extracted': benchmarks_p['dist_dfa_extr'].std()
                  })
 
@@ -246,11 +246,11 @@ class BenchmarkingSubSuper:
 
         start_time = time.time()
         student = DecisionTreeLearner(teacher_pac)
-        print(student.dfa)
+        #print(student.dfa)
 
         #to do: adapte the following for subsuper dfa
         teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
-        print("finishTeach")
+        #print("finishTeach")
         logging.debug(student.dfa)
         benchmark.update({"extraction_time": time.time() - start_time})
         benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
@@ -267,10 +267,10 @@ class BenchmarkingSubSuper:
     def compute_distances(models, benchmark, epsilon=0.01, delta=0.005, word_prob=0.01):
         start_time = time.time()
         logging.debug("Starting distance measuring")
-        print("begin distance measuring")
+        #print("begin distance measuring")
         output, samples = confidence_interval_many_cython(models, width=0.001, confidence=delta, word_prob=0.05)
-        print("distance dfa noisy")
-        print(output[0][1])
+        #print("distance dfa noisy")
+        #print(output[0][1])
         print("theoretical distance")
         dis=pow((1/len(models[0].alphabet)), models[0].len_cri_trace)
         print(dis)
@@ -278,7 +278,7 @@ class BenchmarkingSubSuper:
         logging.debug(output)
         dist_2_original = np.average(output[0][2:])
         dist_2_noisy = np.average(output[1][2:])
-        benchmark.update({"dist_dfa_noisy": output[0][1],
+        benchmark.update({"dist_dfa_noisy": dis,
                           "dist_dfa_extr": dist_2_original,
                           "dist_noisy_extr": dist_2_noisy})
 

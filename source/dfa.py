@@ -674,4 +674,3 @@ def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
                 q = np.random.randint(0, states)
                 transitions[s][l]=q
     return DFA(initial_state, [final_state], transitions)
-
