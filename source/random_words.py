@@ -6,7 +6,7 @@ from randwords import random_words, is_words_in_dfa, compare_list_of_bool, is_wo
     is_words_in_dfa_finalcount
 
 from counter_dfa import CounterDFA, NoisyCounterDFA, DFAFinalCount
-from dfa import DFA, DFANoisy
+from dfa import DFA, DFANoisy, DFAsubSuper
 
 from noisy_input_dfa import NoisyInputDFA
 
@@ -14,11 +14,11 @@ from noisy_input_dfa import NoisyInputDFA
 def random_word(alphabet, p=0.01):
     nums_of_letters = len(alphabet)
     word = []
-    while np.random.randint(0, int(1 / p)) != 0:
-        letter = np.random.randint(0, nums_of_letters)
-        word.append(alphabet[letter])
+    word_length = np.random.geometric(p=p)
+    letters = np.random.randint(0, nums_of_letters, size=word_length)
+    for i in letters:
+        word.append(alphabet[i])
     return tuple(word)
-
 
 def random_word_by_letter(alphabet, p=0.01):
     nums_of_letters = len(alphabet)

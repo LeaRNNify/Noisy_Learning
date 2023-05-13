@@ -19,7 +19,14 @@ np.random.seed(seed=2)
 #benchmark_noisy_dfa.benchmarks_noise_model(10)
 
 benchmark_noisy_dfa = BenchmarkingSubSuper(pac_epsilons=(0.001,), p_noise=[0.005, 0.001, 0.0005, 0.0001], dfa_noise=DFAsubSuper)
-benchmark_noisy_dfa.benchmarks_subsuper_model(180)
+
+benchmark_noisy_dfa.benchmarks_subsuper_model(1)
+
+##########################################
+# new method using threads:
+# benchmark_noisy_dfa.benchmarks_subsuper_model_threads(20,max_threads=10)
+##########################################
+
 
 #benchmark_noisy_dfa = BenchmarkingNoise(pac_epsilons=(0.001,), p_noise=[], dfa_noise=CounterDFA)
 #benchmark_noisy_dfa.benchmarks_noise_model(100)
