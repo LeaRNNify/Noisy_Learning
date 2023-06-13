@@ -14,11 +14,15 @@ from noisy_input_dfa import NoisyInputDFA
 def random_word(alphabet, p=0.01):
     nums_of_letters = len(alphabet)
     word = []
+    #while np.random.randint(0, int(1 / p)) != 0:
+    #    letter = np.random.randint(0, nums_of_letters)
+    #    word.append(alphabet[letter])
     word_length = np.random.geometric(p=p)
     letters = np.random.randint(0, nums_of_letters, size=word_length)
     for i in letters:
         word.append(alphabet[i])
     return tuple(word)
+
 
 def random_word_by_letter(alphabet, p=0.01):
     nums_of_letters = len(alphabet)
@@ -29,7 +33,6 @@ def random_word_by_letter(alphabet, p=0.01):
 
 def confidence_interval(language1, language2, sampler, delta=0.001, epsilon=0.001, samples=None):
     n = np.log(2 / delta) / (2 * epsilon * epsilon)
-    print(n)
     if samples is None:
         samples = set()
         while len(samples) < n:
@@ -232,6 +235,7 @@ def confidence_interval_many_cython(languages, confidence=0.001, width=0.005, sa
         raise Exception("Need at least 2 languages to compare")
 
     full_num_of_samples = np.log(2 / confidence) / (2 * width * width)
+    #print(full_num_of_samples)
     max_samples = 1000000
     output = []
     # num_of_lan = 3
@@ -388,3 +392,104 @@ def confidence_interval_many_for_reuse_2(languages, sampler, previous_answers=No
     output[0][1] = ([(in_langs_lists[0])[i] == (in_langs_lists[1])[i] for i in
                      range(len(samples))].count(False)) / len(samples)
     return output, samples, in_langs_lists[0:-1]
+
+
+
+
+def confidence_interval_single(language, confidence=0.001, width=0.005, samples=None, word_prob=0.01):
+    """
+    Produce the probabilistic distance of the given languages. Using the Chernoff-Hoeffding bound we get that
+    in order to have:
+        P(S - E[S]>width)< confidence
+        S = 1/n(n empirical examples)
+
+    the number of examples that one needs to use is:
+        #examples = log(2 / confidence) / (2 * width * width)
+
+    For more details:
+    https://en.wikipedia.org/wiki/Hoeffding%27s_inequality
+
+    """
+
+    full_num_of_samples = np.log(2 / confidence) / (2 * width * width)
+    max_samples = 1000000
+    #output = []
+    # num_of_lan = 3
+    #for i in range(num_of_lan):
+    #output.append([0] * 1)
+    div = int(full_num_of_samples / max_samples)
+    mod = full_num_of_samples % max_samples
+    if div >= 1:
+        nums = [max_samples] * div
+        nums.append(mod)
+    else:
+        nums = [mod]
+    # print(div, mod, nums, full_num_of_samples)
+
+    i = 0
+    samples = None
+    runs_done=0
+    totalsize=0
+    for num_of_samples in nums:
+        # time.sleep(30)
+        # if runs_done % 5 == 0:
+        #     print("process {}/{}:".format(runs_done, len(nums)))
+        runs_done += 1
+
+        del samples
+        samples = None
+
+        # if samples is None:
+        # print(int(1 / word_prob))
+        def sampler():
+            return random_words(num_of_samples, tuple(language.alphabet), 1 / word_prob)
+
+        samples = sampler()
+
+        # samples = [random_word(tuple(languages[0].alphabet)) for _ in range(max_samples)]
+        # print(len(samples))
+        # if len(samples1) != 0:
+        #     for w in samples1:
+        #         if w in samples:
+        #             print("yeah")
+        #
+        # samples1 = samples
+        # samples = [sampler(languages[0].alphabet) for _ in range(int(num_of_samples))]
+        #
+        # print(word_prob)
+        # print(len(samples))
+        # print(sum([len(w) for w in samples])/len(samples))
+        in_langs_lists = []
+        #i = 0
+        # sys.stdout.write('\r Creating bool lists for each lan:  {}/{} done'.format(i, num_of_lan))
+        # torch.cuda.empty_cache() /notsure wtf is this??
+        #for lang in languages:
+            # print(lang)
+        if isinstance(language, DFANoisy) or isinstance(language, NoisyInputDFA) or isinstance(language, NoisyCounterDFA) or isinstance(language, DFAsubSuper):
+                # print("noisy DFA")
+            in_langs_lists.append([language.is_word_in(w) for w in samples])
+        elif isinstance(language, DFAFinalCount):
+            in_langs_lists.append(is_words_in_dfa_finalcount(language, samples))
+        elif isinstance(language, CounterDFA):
+            in_langs_lists.append(is_words_in_counterDfa(language, samples))
+                # in_langs_lists.append([lang.is_word_in(w) for w in samples])
+        elif not isinstance(language, DFA):
+            in_langs_lists.append([language.is_word(w) for w in samples])
+        else:
+                # print("")
+            in_langs_lists.append(is_words_in_dfa(language, samples))
+            # in_langs_lists.append([lang.is_word_in(w) for w in samples])
+            # print(in_langs_lists)
+        #output += ([(in_langs_lists[0])[i] == (in_langs_lists[lang2])[i] for i in
+                                              #range(len(samples))].count(False))
+        # for lang1 in range(num_of_lan):
+        #     in_langs_lists[lang1] = []
+        totalsize+=[(in_langs_lists[i])[j] for j in
+                     range(len(samples))].count(True)
+        i+=1
+    print("in langs lists")
+    print(len(in_langs_lists))
+    #output = len(in_langs_lists[0]) / full_num_of_samples
+    output = totalsize / full_num_of_samples
+    # print("done with confidence interval")
+    return output

@@ -112,7 +112,6 @@ class BenchmarkingNoise:
             start_time = time.time()
             logging.info("Running benchmark {}/{}".format(bench_num, num_benchmarks))
             dfa = None
-            #old version: if dfas is not None: (index out of range)
             if dfas is not None and len(dfas)>=bench_num:
                 dfa = dfas[bench_num - 1]
             benchmark_list = self.rand_benchmark(
@@ -139,26 +138,57 @@ class BenchmarkingNoise:
         if benchmarks['noise_type'].iloc[0] == "noisy_DFA":
             benchmarks['dist_dfa_noisy'] = benchmarks['mistake_prob']
 
-        distances = [1, 0.025, 0.005, 0.0025, 0.0015, 0.001, 0.0005, 0.0001]
+        #distances = [1, 0.025, 0.005, 0.0025, 0.0015, 0.001, 0.0005, 0.0001]
+        #distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005]
+        distances = [1, 0.005, 0.0025, 0.0015, 0.001, 0.0005]
 
-        for range_min, range_max in zip(distances[1:], distances[0:-2]):
+        for range_min, range_max in zip(distances[1:], distances[0:-1]):
             benchmarks_p: pd.DataFrame = benchmarks.loc[(benchmarks['dist_dfa_noisy'] <= range_max) &
                                                         (benchmarks['dist_dfa_noisy'] > range_min)]
-            summary_lines.append(
+            if benchmarks_p['dist_dfa_extr'].mean()!=0:
+                summary_lines.append(
                 {'range_min': range_min,
                  'range_max': range_max,
                  'num_benchmarks': len(benchmarks_p),
                  'Mean Alphabet Size': benchmarks_p['alph_len'].mean(),
                  'Mean DFA State': benchmarks_p['dfa_states'].mean(),
-                 'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
+                 #'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
                  'Mean Extracted DFA State': benchmarks_p['dfa_extract_states'].mean(),
-                 'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
+                 
+                 ##reduce DFA size
+                 #'Mean Finally Extracted DFA State': benchmarks_p['finaldfa_extract_states'].mean(),
+                 #'Mean distance threshold': benchmarks_p['distance threshold'].mean(),
+                 
+                 #'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
                  'Dist to Noisy': benchmarks_p['dist_dfa_noisy'].mean(),
                  'Dist to Extracted': benchmarks_p['dist_dfa_extr'].mean(),
                  'Dist Noisy to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
                  'Gain': (benchmarks_p['dist_dfa_noisy'].mean() / benchmarks_p['dist_dfa_extr'].mean()),
+                 
+                 #reduce DFA size
+                 #'Gain final': (benchmarks_p['dist_dfa_noisy_final'].mean() / benchmarks_p['dist_dfa_extr_final'].mean()),
+                 
                  'STD Original to Extracted': benchmarks_p['dist_dfa_extr'].std()
                  })
+            else:
+                summary_lines.append(
+                {'range_min': range_min,
+                 'range_max': range_max,
+                 'num_benchmarks': len(benchmarks_p),
+                 'Mean Alphabet Size': benchmarks_p['alph_len'].mean(),
+                 'Mean DFA State': benchmarks_p['dfa_states'].mean(),
+                 #'Mean DFA Final State': benchmarks_p['dfa_final'].mean(),
+                 'Mean Extracted DFA State': benchmarks_p['dfa_extract_states'].mean(),
+                 #'Mean Finally Extracted DFA State': benchmarks_p['finaldfa_extract_states'].mean(),
+                 #'Mean distance threshold': benchmarks_p['distance threshold'].mean(),
+                 #'Mean Extracted DFA Final State': benchmarks_p['dfa_extract_final'].mean(),
+                 'Dist to Noisy': benchmarks_p['dist_dfa_noisy'].mean(),
+                 'Dist to Extracted': benchmarks_p['dist_dfa_extr'].mean(),
+                 'Dist Noisy to Extracted': benchmarks_p['dist_noisy_extr'].mean(),
+                 'Gain': "infinite",
+                 'STD Original to Extracted': benchmarks_p['dist_dfa_extr'].std()
+                 })
+                
 
         summary: pd.DataFrame = pd.DataFrame.from_records(summary_lines)
         summary.to_csv(save_dir + "/results_summary.csv")
@@ -167,13 +197,6 @@ class BenchmarkingNoise:
     def rand_benchmark(self, save_dir=None, dfa=None):
         base_benchmark_summary = {}
 
-        '''if dfa is None:
-            dfa = self.rand_dfa()
-            alphabet = dfa.alphabet
-        else:
-            alphabet = self.generate_random_alphabet()
-            dfa = self.generate_random_dfa_and_save(alphabet, save_dir)'''
-            
         if dfa is None:
             alphabet = self.generate_random_alphabet()
             dfa = self.generate_random_dfa_and_save(alphabet, save_dir)
@@ -181,6 +204,7 @@ class BenchmarkingNoise:
             alphabet=dfa.alphabet
 
         base_benchmark_summary.update({"alph_len": len(alphabet)})
+        print(f"dfa state number: {len(dfa.states)}")
         base_benchmark_summary.update(
             {"dfa_states": len(dfa.states), "dfa_final": len(dfa.final_states), 'dfa_unique_session_id': dfa.id})
         logging.debug(f"DFA to learn {dfa}")
@@ -217,8 +241,12 @@ class BenchmarkingNoise:
             if self.dfa_noise == CounterDFA:
                 dfa_noisy = close_rand_counter_dfa(dfa)
             else:
+                print()
                 dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions, mistake_prob=p_noise)
             models = [dfa, dfa_noisy]
+            
+            #reduce DFA size
+            #models1=[dfa, dfa_noisy]
 
             if type(dfa_noisy) == CounterDFA:
                 benchmark['noise_type'] = "counter_DFA"
@@ -227,15 +255,30 @@ class BenchmarkingNoise:
             else:
                 benchmark.update({'noise_type': 'noisy_input_DFA', "mistake_prob": dfa_noisy.mistake_prob})
 
+            #reduce DFA size
+            #extracted_dfa, finalDFA = self.extract_dfa(dfa_noisy, benchmark, word_prob,
+            #                                 epsilon=epsilon, delta=epsilon, noise=p_noise)
+                                             #epsilon=epsilon, delta=epsilon)
+                                             
             extracted_dfa = self.extract_dfa(dfa_noisy, benchmark, word_prob,
-                                             epsilon=epsilon, delta=epsilon)
+                                             epsilon=epsilon, delta=epsilon, noise=p_noise)
+            
             if dir_name is not None:
                 save_dfa_as_part_of_model(dir_name, extracted_dfa,
                                           name="extracted_dfa_p" + suffix,
                                           force_overwrite=True)
             models.append(extracted_dfa)
+            
+            #reduce DFA size
+            #models1.append(finalDFA)
+            
             self.compute_distances(models, benchmark, epsilon=self.dist_epsilon_delta,
                                    word_prob=word_prob)
+            
+            #reduce DFA size
+            #self.compute_distances_final(models, benchmark, epsilon=self.dist_epsilon_delta,
+                                   #word_prob=word_prob)
+                                   
             benchmarks.append(benchmark)
         return benchmarks
 
@@ -244,14 +287,19 @@ class BenchmarkingNoise:
         alphabet = full_alphabet[0:np.random.randint(self.min_alphabet_size, self.max_alphabet_size)]
         return alphabet
 
-    def extract_dfa(self, dfa, benchmark, word_probability=0.001, epsilon=0.001, delta=0.001):
+    def extract_dfa(self, dfa, benchmark, word_probability=0.001, epsilon=0.001, delta=0.001, noise=0.01):
         teacher_pac = PACTeacher(dfa, epsilon, delta, word_probability=word_probability)
         logging.debug("Starting DFA extraction")
 
         start_time = time.time()
         student = DecisionTreeLearner(teacher_pac)
 
-        teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
+        #teacher_pac.teach(student)
+        #teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
+        teacher_pac.teach_fix_round(student)
+        #finalDFA, dis=teacher_pac.teach_size_compare(student, noise)
+        #finalDFA=minimize_dfa(finalDFA)
+        
         logging.debug(student.dfa)
         benchmark.update({"extraction_time": time.time() - start_time})
         benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
@@ -261,8 +309,14 @@ class BenchmarkingNoise:
         logging.debug(dfa_extract)
         benchmark.update({"dfa_extract_states": len(dfa_extract.states),
                           "dfa_extract_final": len(dfa_extract.final_states)})
+        
+        #reduce DFA size
+        #benchmark.update ({"finaldfa_extract_states": len(finalDFA.states),
+                          #"finaldfa_extract_final": len(finalDFA.final_states),
+                          #"distance threshold": dis*0.001,
+                          #})
 
-        return dfa_extract
+        return dfa_extract#, finalDFA
 
     @staticmethod
     def compute_distances(models, benchmark, epsilon=0.01, delta=0.005, word_prob=0.01):
@@ -273,9 +327,30 @@ class BenchmarkingNoise:
         logging.debug(output)
         dist_2_original = np.average(output[0][2:])
         dist_2_noisy = np.average(output[1][2:])
+        
+        #benchmark.update({"dist_dfa_noisy": benchmark["mistake_prob"],
+        
         benchmark.update({"dist_dfa_noisy": output[0][1],
                           "dist_dfa_extr": dist_2_original,
                           "dist_noisy_extr": dist_2_noisy})
+
+        logging.debug(output)
+
+        logging.debug("Finished distance measuring in {}'s".format(time.time() - start_time))
+        
+    @staticmethod
+    def compute_distances_final(models, benchmark, epsilon=0.01, delta=0.005, word_prob=0.01):
+        start_time = time.time()
+        logging.debug("Starting distance measuring")
+        output, samples = confidence_interval_many_cython(models, width=epsilon, confidence=delta, word_prob=word_prob)
+        logging.debug("The confidence interval for epsilon = {} , delta = {}".format(epsilon, delta))
+        logging.debug(output)
+        dist_2_original = np.average(output[0][2:])
+        dist_2_noisy = np.average(output[1][2:])
+        #benchmark.update({"dist_dfa_noisy": benchmark["mistake_prob"],
+        benchmark.update({"dist_dfa_noisy_final": output[0][1],
+                          "dist_dfa_extr_final": dist_2_original,
+                          "dist_noisy_extr_final": dist_2_noisy})
 
         logging.debug(output)
 

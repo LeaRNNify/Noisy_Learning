@@ -11,8 +11,9 @@ from dfa_check import DFAChecker
 from learner_decison_tree import DecisionTreeLearner
 from noisy_input_dfa import NoisyInputDFA
 from random_words import random_word, confidence_interval_many_for_reuse, confidence_interval_many_cython, \
-    confidence_interval_many_for_reuse_2
+    confidence_interval_many_for_reuse_2, confidence_interval_single
 from teacher import Teacher
+from exact_teacher import ExactTeacher
 from randwords import is_words_in_dfa, compare_list_of_bool, is_words_in_counterDfa, \
     is_words_in_dfa_finalcount
 
@@ -20,6 +21,11 @@ from randwords import is_words_in_dfa, compare_list_of_bool, is_words_in_counter
 def random_words(batch_size, alphabet, word_length):
     return [random_word(alphabet, 1 / word_length) for _ in range(batch_size)]
 
+# def minimize_dfa(dfa: DFA) -> DFA:
+#     teacher_pac = ExactTeacher(dfa)
+#     student = DecisionTreeLearner(teacher_pac)
+#     teacher_pac.teach(student)
+#     return student.dfa
 
 class StupidGuess:
     def __init__(self, dic):
@@ -73,6 +79,8 @@ class PACTeacher(Teacher):
                 self.prev_examples[w] = x
                 if x != y:
                     return w
+                
+            
         return None
 
     def membership_query(self, word):
@@ -80,7 +88,7 @@ class PACTeacher(Teacher):
         self.prev_examples[word] = self.model.is_word_in(word)
         return self.model.is_word_in(word)
 
-    def teach(self, learner, max_eq=900):
+    def teach(self, learner, max_eq=250):
         self.num_equivalence_asked = 0
         learner.teacher = self
         i = 0
@@ -88,9 +96,8 @@ class PACTeacher(Teacher):
         t100 = start_time
         while True:
             if self.num_equivalence_asked > max_eq:
-                print("hreh")
                 return
-            # print(i)
+         
             i = i + 1
             if i % 100 == 0:
                 print("this is the {}th round".format(i))
@@ -101,7 +108,8 @@ class PACTeacher(Teacher):
             counter = self.equivalence_query(learner.dfa)
             if counter is None:
                 break
-            num_of_ref = learner.new_counterexample(counter, self.is_counter_example_in_batches, max_refinements=1)
+            #num_of_ref = learner.new_counterexample(counter, self.is_counter_example_in_batches, max_refinements=1)
+            num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
             self.num_equivalence_asked += num_of_ref - 1
 
     def teach_limited_equivalence_queries(self, learner: DecisionTreeLearner, equivalence_queries):
@@ -153,6 +161,107 @@ class PACTeacher(Teacher):
             if finished_learning or max_prev_larger_then_curr < 0:
                 learner.dfa = min_dfa
                 return
+            
+    def teach_intermediate_size(self, learner):
+        self.num_equivalence_asked = 0
+        confidence_width = 0.01
+        samples = None
+
+        min_dfa = None
+        i = 0
+        start_time = time.time()
+        t100 = start_time
+
+        while self.num_equivalence_asked<500:
+
+            counter = self.equivalence_query(learner.dfa)
+            if counter is None:
+                #learner.dfa = min_dfa
+                break
+            num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
+            self.num_equivalence_asked += num_of_ref
+            #min_dfa=minimize_dfa(learner.dfa)
+            #print(f"learner state size: {len(min_dfa.states)}")
+        return learner.dfa
+            
+    def teach_fix_round(self, learner):
+        self.num_equivalence_asked = 0
+        confidence_width = 0.01
+        samples = None
+
+        min_dfa = None
+        i = 0
+        start_time = time.time()
+        t100 = start_time
+
+        while self.num_equivalence_asked<500:
+
+            counter = self.equivalence_query(learner.dfa)
+            if counter is None:
+                #learner.dfa = min_dfa
+                break
+            num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
+            self.num_equivalence_asked += num_of_ref
+            #min_dfa=minimize_dfa(learner.dfa)
+            #print(f"learner state size: {len(min_dfa.states)}")
+        return learner.dfa
+    
+    def teach_size_compare(self, learner, noise):
+        self.num_equivalence_asked = 0
+        confidence_width = 0.01
+        prev_dist=1
+        prev_size = 0
+        #min_size = 1000
+        samples = None
+        maxround=500
+        rfinal=maxround
+        i = 0
+        #min_dfa = None
+        #begin=False
+        listDFA=[]
+
+        while self.num_equivalence_asked<maxround:
+
+            if self.num_equivalence_asked / 20 > i:
+                i = i + 1
+                dfa=learner.dfa
+                listDFA.append(dfa)
+                
+            counter = self.equivalence_query(learner.dfa)
+            if counter is None:
+                #learner.dfa = min_dfa
+                rfinal=self.num_equivalence_asked
+                break
+            num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
+            self.num_equivalence_asked += num_of_ref
+        
+        finalDFA=listDFA[-1]
+        dis=confidence_interval_single(finalDFA)
+        for j in range(len(listDFA)-1):
+            models=[listDFA[j], finalDFA]
+            output, samples = confidence_interval_many_cython(models, width=0.01, confidence=0.005, word_prob=0.01)
+            
+            # if samples is None:
+            #         output, samples, answers = confidence_interval_many_for_reuse_2([listDFA[j], finalDFA],
+            #                                                                         random_word,
+            #                                                                         width=confidence_width,
+            #                                                                         confidence=confidence_width)
+            # else:
+            #         output, _, answers = confidence_interval_many_for_reuse_2([listDFA[j], finalDFA],
+            #                                                                   random_word, answers, samples=samples,
+            #                                                                   width=confidence_width,
+            #                                                                   confidence=confidence_width)
+            
+            #if output[0][1]<noise*0.1:
+            if output[0][1]<dis*0.001:
+                learner.dfa=listDFA[j]
+                return listDFA[-1], dis
+        learner.dfa=listDFA[-1]
+        return listDFA[-1], dis
+             
+         
+         
+ 
 
     def teach_acc_noise_dist(self, learner, max_prev_larger_then_curr=3):
         self.num_equivalence_asked = 0
@@ -170,7 +279,7 @@ class PACTeacher(Teacher):
         t100 = start_time
 
         while True:
-            if count_prev_larger_then_curr >= max_prev_larger_then_curr:
+            if count_prev_larger_then_curr >= max_prev_larger_then_curr  or self.num_equivalence_asked>=500:
                 logging.debug(max_prev_larger_then_curr)
                 logging.debug(time.time() - start_time)
                 learner.dfa = min_dfa
@@ -213,6 +322,8 @@ class PACTeacher(Teacher):
                 break
             num_of_ref = learner.new_counterexample(counter, False, max_refinements=1)
             self.num_equivalence_asked += num_of_ref
+            #print(f"the equivalence number: {self.num_equivalence_asked}")
+            
 
     def teach_and_trace(self, student, dfa_model, timeout=900):
         num_of_state = 600

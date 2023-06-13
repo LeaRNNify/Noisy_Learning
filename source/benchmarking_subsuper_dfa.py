@@ -40,9 +40,9 @@ class BenchmarkingSubSuper:
 
     def __init__(self,
                  pac_epsilons=(0.005,), pac_deltas=(0.005,), word_probs=(0.05,), max_eq=250,
-                 max_extracted_dfa_worsen_distance=3,
+                 max_extracted_dfa_worsen_distance=5,
                  p_noise=(0.01, 0.005, 0.0025, 0.0015, 0.001), dfa_noise=DFAsubSuper,
-                 min_dfa_state=20, max_dfa_states=60, max_alphabet_size=26, min_alphabet_size=15,
+                 min_dfa_state=21, max_dfa_states=60, max_alphabet_size=15, min_alphabet_size=5,
                  dist_epsilon_delta=0.005):
         """
 
@@ -84,7 +84,7 @@ class BenchmarkingSubSuper:
         # Result distance computation
         self.dist_epsilon_delta = dist_epsilon_delta
 
-    def benchmarks_subsuper_model_threads(self, num_benchmarks=10, save_dir=None, dfa_dir=None, max_threads=4):
+    def benchmarks_subsuper_model_threads(self, num_benchmarks=10, save_dir=None, dfa_dir=None, max_threads=6):
         """
         Runs the subsuper learning benchmarks and produces a summary of these results
         @param num_benchmarks: the number of benchmarks to generate for each p_noise, epsilons, deltas, word_probs
@@ -99,7 +99,6 @@ class BenchmarkingSubSuper:
 
         dfas = []
         if dfa_dir is not None:
-            print("dir test")
             dfas = load_dfas(dfa_dir)
         bench_threads = []
         manager = multiprocessing.Manager()
@@ -110,7 +109,6 @@ class BenchmarkingSubSuper:
 
             dfa = None
             if dfas is not None and len(dfas) >= bench_num:
-                print("dfas try")
                 dfa = dfas[bench_num - 1]
             bench_thread = multiprocessing.Process(target=self.subsuper_benchmark,
                                                    args=(save_dir + "/" + format(datetime.datetime.now().strftime("%d-%b-%Y_%H-%M-%S")) + str(bench_num),
@@ -184,7 +182,7 @@ class BenchmarkingSubSuper:
             benchmarks['dist_dfa_noisy'] = benchmarks['mistake_prob']
 
         # distances = [1, 0.025, 0.005, 0.0025, 0.0015, 0.001, 0.0005, 0.0001]
-        distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005]
+        distances = [1, 0.025, 0.005, 0.002, 0.001, 0.0005, 0.00005]
 
         for range_min, range_max in zip(distances[1:], distances[0:-1]):
             benchmarks_p: pd.DataFrame = benchmarks.loc[(benchmarks['dist_dfa_noisy'] <= range_max) &
@@ -214,23 +212,11 @@ class BenchmarkingSubSuper:
         start_time = time.time()
         base_benchmark_summary = {}
 
-        # print(dfa)
         if dfa is None:
             alphabet = self.generate_random_alphabet()
             dfa = self.generate_random_dfa_and_save(alphabet, save_dir)
         else:
             alphabet = dfa.alphabet
-
-        '''if dfa is None:
-            dfa = self.generate_random_dfa_and_save
-            alphabet = dfa.alphabet
-        else:
-            alphabet = self.generate_random_alphabet()
-            dfa = self.generate_random_dfa_and_save(alphabet, save_dir)'''
-
-        # alphabet = self.generate_random_alphabet()
-
-        # dfa = self.generate_random_dfa_and_save(alphabet, save_dir)
 
         base_benchmark_summary.update({"alph_len": len(alphabet)})
         base_benchmark_summary.update(
@@ -250,10 +236,9 @@ class BenchmarkingSubSuper:
         @param save_dir:
         @return: the random DFA
         """
-        # i=0
         while True:
             dfa = random_subsuper_dfa(alphabet, min_state=self.min_dfa_states, max_states=self.max_dfa_states)
-            # dfa=minimize_dfa(dfa_rand)
+            #dfa=minimize_dfa(dfa) #do not have the same structure as before minimization
             if len(dfa.states) > self.min_dfa_states:  # and dfa_super.dfa_super is not None:
                 break
 
@@ -272,6 +257,7 @@ class BenchmarkingSubSuper:
         suffix = "EpDel-" + str(self.pac_epsilons[0]) + "MaxEQ" + str(self.max_eq) + "WProb" + str(self.word_probs[0])
 
         dfa_noisy = self.dfa_noise(dfa.init_state, dfa.final_states, dfa.transitions)
+ 
         models = [dfa_noisy, dfa_noisy.dfa_super]
 
         benchmark.update({'noise_type': 'noisy_subsuper_DFA', "acc_prob": dfa_noisy.acc_prob})
@@ -305,11 +291,9 @@ class BenchmarkingSubSuper:
 
         start_time = time.time()
         student = DecisionTreeLearner(teacher_pac)
-        # print(student.dfa)
 
-        # to do: adapte the following for subsuper dfa
         teacher_pac.teach_acc_noise_dist(student, self.max_extracted_dfa_worsen_distance)
-        # print("finishTeach")
+     
         logging.debug(student.dfa)
         benchmark.update({"extraction_time": time.time() - start_time})
         benchmark.update({"extraction_loops": teacher_pac.num_equivalence_asked})
@@ -328,15 +312,22 @@ class BenchmarkingSubSuper:
         logging.debug("Starting distance measuring")
         # print("begin distance measuring")
         output, samples = confidence_interval_many_cython(models, width=0.001, confidence=delta, word_prob=0.05)
-        # print("distance dfa noisy")
-        # print(output[0][1])
-        print("theoretical distance")
-        dis = pow((1 / len(models[0].alphabet)), models[0].len_cri_trace)
-        print(dis)
+        
         logging.debug("The confidence interval for epsilon = {} , delta = {}".format(epsilon, delta))
         logging.debug(output)
         dist_2_original = np.average(output[0][2:])
         dist_2_noisy = np.average(output[1][2:])
+        
+        # print("calculated distance of dfa and super_dfa")
+        # print(output[0][1])
+        # print("theoretical distance")
+        #dis = pow((1 / len(models[0].alphabet)), models[0].len_cri_trace)
+        dis = pow((1 / len(models[0].alphabet)), 3)
+        # print(dis)
+        # print("calculated distance of dfa and extracted dfa")
+        # print(dist_2_original)
+        # print("calculated distance of super_dfa and extracted dfa")
+        # print(dist_2_noisy)
         benchmark.update({"dist_dfa_noisy": dis,
                           "dist_dfa_extr": dist_2_original,
                           "dist_noisy_extr": dist_2_noisy})

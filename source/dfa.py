@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import graphviz as gv
 import numpy as np
+import random
 
 # from randwords import sto_is_word_in
 
@@ -346,7 +347,7 @@ class DFA:
 
 
 def random_dfa(alphabet, min_state=10, max_states=100) -> DFA:
-    print("testing")
+    #print("testing")
     assert min_state < max_states
     states = np.random.randint(min_state, max_states)
     num_of_final = np.random.randint(1, states - 1)
@@ -561,12 +562,10 @@ class DFAsubSuper(DFA):
                 
     def find_critical_bscc(self):
         bscc=self.bottom_strongly_connected_components()
-        #print("scc")
-        #print(bscc)
+        
         for b in bscc:
             if not (set(b) & set(self.final_states)):
-                #print("bb")
-                #print(b)
+                 
                 sp=self.find_sp_bscc(b)
                 if len(sp[0])==self.len_cri_trace:
                     return sp
@@ -575,18 +574,20 @@ class DFAsubSuper(DFA):
                     return sp
         return None
     
-    
-    
     def create_dfa_super(self):
+        transitions_super={key: deepcopy(value) for key, value in self.transitions.items()}
+        final_states_super=self.final_states.copy()
+        final_states_super.append(3)
+        return DFA(self.init_state, final_states_super, transitions_super)
+    
+    def create_dfa_super_complicated(self):
         ctl_trace=self.find_critical_bscc()
         
         #ctl_trace is a tuple of critical trace and end state
         if ctl_trace is not None:
             end_state, trace=ctl_trace[1], ctl_trace[0]
             new_state=len(self.states)+1
-            #my_copy = {key: value[:] for key, value in my_dict.items()}
             transitions_super={key: deepcopy(value) for key, value in self.transitions.items()}
-            #transitions_super=self.transitions.copy()
             state_trace=self.init_state
             letter=list(trace[state_trace].keys())[0]
             transitions_super[state_trace][letter]=new_state
@@ -652,10 +653,13 @@ class DFAsubSuper(DFA):
             self.known_mistakes.update({word: label})
             return '''
             
-def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
+def random_subsuper_dfa_complicated(alphabet, min_state=20, max_states=60) -> DFA:
     assert min_state < max_states
     states = np.random.randint(min_state, max_states)
-    final_state = np.random.randint(3, states - 1)
+    num_of_final = np.random.randint(1, states - 6)
+    final_state=random.sample(range(4, states-1), num_of_final)
+    #final_state=np.random.randint(4, states - 2, num_of_final)
+    #final_state = np.random.randint(4, states - 1)
     initial_state = 0
     #final_states = np.random.choice(states, size=num_of_final, replace=False)
 
@@ -664,13 +668,86 @@ def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
         transitions[s]={}
     transitions[0][alphabet[0]]=1
     transitions[1][alphabet[1]]=2
+    transitions[2][alphabet[2]]=3
     for l in alphabet:
-        transitions[2][l]=2
-        transitions[final_state][l]=final_state
+        transitions[3][l]=3
+        #transitions[final_state][l]=final_state
         
     for s in range(states):
         for l in alphabet:
             if not l in transitions[s]:
-                q = np.random.randint(0, states)
-                transitions[s][l]=q
-    return DFA(initial_state, [final_state], transitions)
+                while True:
+                    q = np.random.randint(0, states)
+                    if q!=3:
+                        transitions[s][l]=q
+                        break
+    return DFA(initial_state, final_state, transitions)
+
+def random_subsuper_dfa(alphabet, min_state=20, max_states=60) -> DFA:
+    assert min_state < max_states
+    states = np.random.randint(min_state, max_states)
+    num_of_final = np.random.randint(1, states - 6)
+    final_state=random.sample(range(4, states-1), num_of_final)
+    #final_state=np.random.randint(4, states - 2, num_of_final)
+    #final_state = np.random.randint(4, states - 1)
+    initial_state = 0
+    #final_states = np.random.choice(states, size=num_of_final, replace=False)
+
+    transitions = {}
+    for s in range(states):
+        transitions[s]={}
+    transitions[0][alphabet[0]]=1
+    transitions[1][alphabet[1]]=2
+    transitions[2][alphabet[2]]=3
+    for l in alphabet:
+        transitions[3][l]=3
+        #transitions[final_state][l]=final_state
+    
+    states123=[0,1,2,3]
+    for s in range(states):
+        for l in alphabet:
+            if not l in transitions[s]:
+                while True:
+                    q = np.random.randint(0, states)
+                    if q not in states123:
+                        transitions[s][l]=q
+                        break
+    return DFA(initial_state, final_state, transitions)
+
+#da=random_subsuper_dfa("abc", min_state=7, max_states=25)
+#print(da.transitions)
+#print(da.final_states)
+
+'''alpha="abcdefghi"
+dfa1=random_subsuper_dfa("abc", min_state=7, max_states=25)
+print(dfa1.states)
+print(dfa1.final_states)
+print(dfa1.transitions)
+super_dfa=DFAsubSuper(dfa1.init_state, dfa1.final_states, dfa1.transitions)
+print(super_dfa.dfa_super.transitions)
+print("final")
+print(super_dfa.dfa_super.final_states)'''
+
+
+
+
+
+
+
+'''init_state1=0
+final_states1=[4]
+transitions1={
+             0:{"a":1, "b":3},
+             1:{"a":3, "b":2},
+             2:{"a":2, "b":2},
+             3:{"a":1, "b":4},
+             4:{"a":4, "b":4},
+            }
+dfa_test=DFAsubSuper(init_state=init_state1, final_states=final_states1, transitions=transitions1)
+print(dfa_test.dfa_super.transitions)
+print(dfa_test.dfa_super.final_states)
+print(dfa_test.len_cri_trace)'''
+
+
+
+ 
